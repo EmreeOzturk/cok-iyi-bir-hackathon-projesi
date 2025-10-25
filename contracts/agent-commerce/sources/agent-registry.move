@@ -2,7 +2,9 @@ module agent_commerce::agent_registry {
     use std::option;
 
     use sui::dynamic_field;
+    use sui::event;
     use sui::object::{ID, UID};
+    use sui::transfer;
     use sui::tx_context;
 
     use agent_commerce::errors;
@@ -20,11 +22,25 @@ module agent_commerce::agent_registry {
     const FREE: u8 = 2;
 
     public struct Profile has copy, drop, store {
+        agent_name: vector<u8>, // Agent name as specified in PRD
         owner: address,
         description: vector<u8>,
         pricing: PricingModel,
         reputation: ID,
         service_endpoint: vector<u8>,
+    }
+
+    // Events for transparency
+    public struct AgentRegistered has copy, drop {
+        agent_id: ID,
+        agent_name: vector<u8>,
+        owner: address,
+        service_endpoint: vector<u8>,
+    }
+
+    public struct AgentUpdated has copy, drop {
+        agent_id: ID,
+        pricing: PricingModel,
     }
 
     public struct AgentRegistry has key, store {
@@ -39,9 +55,15 @@ module agent_commerce::agent_registry {
         AgentRegistry { id: object::new(ctx) }
     }
 
+    public entry fun create_and_transfer_registry(ctx: &mut TxContext) {
+        let registry = create_registry(ctx);
+        transfer::public_transfer(registry, tx_context::sender(ctx));
+    }
+
     public fun register_agent(
         registry: &mut AgentRegistry,
         agent_id: ID,
+        agent_name: vector<u8>,
         owner: address,
         description: vector<u8>,
         pricing: PricingModel,
@@ -49,6 +71,7 @@ module agent_commerce::agent_registry {
         service_endpoint: vector<u8>,
         ctx: &TxContext,
     ) {
+        assert!(vector::length(&agent_name) > 0, errors::invalid_input());
         assert!(vector::length(&description) > 0, errors::not_found());
         assert!(vector::length(&service_endpoint) > 0, errors::not_found());
 
@@ -68,6 +91,7 @@ module agent_commerce::agent_registry {
             &mut registry.id,
             key,
             Profile {
+                agent_name: *&agent_name,
                 owner,
                 description,
                 pricing,
@@ -75,7 +99,13 @@ module agent_commerce::agent_registry {
                 service_endpoint,
             },
         );
-        // event::emit(AgentRegistered { agent_id, owner });
+
+        event::emit(AgentRegistered {
+            agent_id,
+            agent_name: *&agent_name,
+            owner,
+            service_endpoint,
+        });
     }
 
     public fun update_pricing(
@@ -87,7 +117,11 @@ module agent_commerce::agent_registry {
         let profile = borrow_profile_mut(&mut registry.id, agent_id);
         assert!(profile.owner == caller, errors::not_authorized());
         profile.pricing = pricing;
-        // event::emit(AgentUpdated { agent_id, pricing });
+
+        event::emit(AgentUpdated {
+            agent_id,
+            pricing,
+        });
     }
 
     public fun lookup_agent(
@@ -159,6 +193,11 @@ module agent_commerce::agent_registry {
     /// Get pricing amount
     public fun pricing_amount(pricing: &PricingModel): u64 {
         pricing.amount
+    }
+
+    /// Get agent name from profile
+    public fun profile_agent_name(profile: &Profile): vector<u8> {
+        *&profile.agent_name
     }
 
     // Test-only getter for accessing profile pricing

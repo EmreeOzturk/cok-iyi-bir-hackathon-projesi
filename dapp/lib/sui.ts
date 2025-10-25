@@ -1,10 +1,12 @@
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { getFullnodeUrl } from '@mysten/sui/client';
 import { CONTRACT_CONFIG } from './config';
 
-// Sui client based on configured network
-export const suiClient = new SuiClient({
-  url: getFullnodeUrl(CONTRACT_CONFIG.NETWORK as 'devnet' | 'testnet' | 'mainnet'),
-});
+// Export network configuration for dapp-kit
+export const networks = {
+  devnet: { url: getFullnodeUrl("devnet") },
+  testnet: { url: getFullnodeUrl("testnet") },
+  mainnet: { url: getFullnodeUrl("mainnet") },
+};
 
 // Contract addresses from config
 export const CONTRACT_ADDRESSES = {

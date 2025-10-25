@@ -1,13 +1,31 @@
 module agent_commerce::reputation_nft {
     use sui::dynamic_field;
+    use sui::event;
     use sui::tx_context;
     use agent_commerce::errors;
 
     public struct Metrics has copy, drop, store {
         total_interactions: u64,
+        basarili_islem: u64, // successful_operations as specified in PRD
         positive: u64,
         negative: u64,
         last_feedback: option::Option<u64>,
+    }
+
+    // Events for transparency
+    public struct FeedbackAuthorityCreated has copy, drop {
+        service_provider: address,
+        service_id: vector<u8>,
+        agent_reputation_id: object::ID,
+        expiration: u64,
+    }
+
+    public struct ReputationUpdated has copy, drop {
+        agent: address,
+        total_interactions: u64,
+        basarili_islem: u64,
+        positive: u64,
+        negative: u64,
     }
 
     public struct ReputationNFT has key, store {
@@ -31,6 +49,7 @@ module agent_commerce::reputation_nft {
         let mut id = object::new(ctx);
         dynamic_field::add(&mut id, METRICS_KEY, Metrics {
             total_interactions: 0,
+            basarili_islem: 0,
             positive: 0,
             negative: 0,
             last_feedback: option::none(),
@@ -58,12 +77,12 @@ module agent_commerce::reputation_nft {
             expiration,
         };
 
-        // event::emit(FeedbackAuthorityCreated {
-        //     service_provider,
-        //     service_id,
-        //     agent_reputation_id,
-        //     expiration,
-        // });
+        event::emit(FeedbackAuthorityCreated {
+            service_provider,
+            service_id,
+            agent_reputation_id,
+            expiration,
+        });
 
         authority
     }
@@ -94,18 +113,20 @@ module agent_commerce::reputation_nft {
         let metrics = borrow_metrics_mut(&mut nft.id);
         metrics.total_interactions = metrics.total_interactions + 1;
         if (is_positive) {
+            metrics.basarili_islem = metrics.basarili_islem + 1;
             metrics.positive = metrics.positive + 1;
         } else {
             metrics.negative = metrics.negative + 1;
         };
         metrics.last_feedback = option::some(timestamp);
 
-        // event::emit(ReputationUpdated {
-        //     agent: nft.agent,
-        //     total_interactions: metrics.total_interactions,
-        //     positive: metrics.positive,
-        //     negative: metrics.negative,
-        // });
+        event::emit(ReputationUpdated {
+            agent: nft.agent,
+            total_interactions: metrics.total_interactions,
+            basarili_islem: metrics.basarili_islem,
+            positive: metrics.positive,
+            negative: metrics.negative,
+        });
     }
 
     public fun stats(nft: &ReputationNFT): Metrics {
@@ -171,6 +192,12 @@ module agent_commerce::reputation_nft {
     /// Get the agent address from a ReputationNFT
     public fun agent_address(nft: &ReputationNFT): address {
         nft.agent
+    }
+
+    /// Get successful operations (basarili_islem) count
+    public fun basarili_islem(nft: &ReputationNFT): u64 {
+        let metrics = stats(nft);
+        metrics.basarili_islem
     }
 
     // Test-only getters for accessing metrics fields

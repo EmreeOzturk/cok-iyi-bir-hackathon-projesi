@@ -92,7 +92,7 @@ export const ServiceCard = ({ service }: ServiceCardProps) => {
           </span>
         </p>
         <p>
-          Mastra orchestrator bu ajanı AccessNFT credential'larıyla otomatik doğrular.
+          Mastra orchestrator bu ajanı AccessNFT credential&apos;larıyla otomatik doğrular.
         </p>
       </CardContent>
       <CardFooter className="flex items-center justify-between">

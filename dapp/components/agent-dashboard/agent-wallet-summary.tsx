@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect } from "react";
-import { CreditCardIcon, WalletIcon } from "@heroicons/react/24/outline";
+import { CreditCardIcon } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
+import { WalletConnection } from "@/components/wallet-connection";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { formatAddress } from "@/lib/sui";
 
 export const AgentWalletSummary = () => {
   const {
     connectedAccount,
-    isConnecting,
     dailyLimit,
     balances,
-    connectWallet,
-    disconnectWallet,
     refreshBalances
   } = useWalletStore();
 
@@ -62,15 +60,9 @@ export const AgentWalletSummary = () => {
 
       <div className="flex gap-2">
         {!connectedAccount ? (
-          <Button
-            variant="primary"
-            onClick={connectWallet}
-            disabled={isConnecting}
-            className="flex-1 justify-center"
-          >
-            <WalletIcon className="mr-2 h-4 w-4" />
-            {isConnecting ? "Connecting..." : "Connect Wallet"}
-          </Button>
+          <div className="flex-1">
+            <WalletConnection />
+          </div>
         ) : (
           <>
             <Button
@@ -80,13 +72,9 @@ export const AgentWalletSummary = () => {
             >
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              onClick={disconnectWallet}
-              className="flex-1 justify-center"
-            >
-              Disconnect
-            </Button>
+            <div className="flex-1">
+              <WalletConnection />
+            </div>
           </>
         )}
       </div>

@@ -4,6 +4,7 @@ module agent_commerce::access_nft {
     use sui::clock::Clock;
     use sui::dynamic_field;
     use sui::object;
+    use sui::event;
 
     use agent_commerce::errors;
 
@@ -18,10 +19,27 @@ module agent_commerce::access_nft {
     public struct AccessNFT has key, store {
         id: object::UID,
         service_id: vector<u8>,
+        kullanici_id: address, // user_id as specified in PRD
         owner: address,
     }
 
     public struct MetadataKey has copy, drop, store {}
+
+    // Events for transparency
+    public struct AccessMinted has copy, drop {
+        recipient: address,
+        service_id: vector<u8>,
+        credits: u64,
+        tier: u8,
+        expiry: Option<u64>,
+    }
+
+    public struct CreditConsumed has copy, drop {
+        owner: address,
+        service_id: vector<u8>,
+        credits_remaining: u64,
+        timestamp: u64,
+    }
 
     public(package) fun mint_access(
         owner: address,
@@ -42,16 +60,18 @@ module agent_commerce::access_nft {
 
         let nft = AccessNFT {
             id,
-            service_id,
+            service_id: *&service_id,
+            kullanici_id: owner, // user_id as specified in PRD
             owner,
         };
 
-        // event::emit(AccessMinted {
-        //     recipient: owner,
-        //     service_id: *&nft.service_id,
-        //     credits,
-        //     tier,
-        // });
+        event::emit(AccessMinted {
+            recipient: owner,
+            service_id: *&nft.service_id,
+            credits,
+            tier,
+            expiry,
+        });
         nft
     }
 
@@ -72,11 +92,13 @@ module agent_commerce::access_nft {
 
         assert!(metadata.credits_remaining > 0, errors::no_credits());
         metadata.credits_remaining = metadata.credits_remaining - 1;
-        // event::emit(CreditConsumed {
-        //     owner: nft.owner,
-        //     service_id: *&nft.service_id,
-        //     credits_remaining: metadata.credits_remaining,
-        // });
+
+        event::emit(CreditConsumed {
+            owner: nft.owner,
+            service_id: *&nft.service_id,
+            credits_remaining: metadata.credits_remaining,
+            timestamp: sui::clock::timestamp_ms(clock_obj),
+        });
     }
 
     public(package) fun extend_access(
@@ -100,6 +122,10 @@ module agent_commerce::access_nft {
 
     public fun owner(nft: &AccessNFT): address {
         nft.owner
+    }
+
+    public fun kullanici_id(nft: &AccessNFT): address {
+        nft.kullanici_id
     }
 
     public fun service_id(nft: &AccessNFT): vector<u8> {

@@ -80,6 +80,7 @@ module agent_commerce::ptb_flow_tests {
         agent_registry::register_agent(
             &mut registry,
             sui::object::id(&reputation_nft),
+            b"Hotel Finder AI", // agent_name
             service_provider,
             b"Hotel Finder AI Service",
             pricing,
@@ -190,6 +191,89 @@ module agent_commerce::ptb_flow_tests {
         sui::transfer::public_transfer(reputation_nft, service_provider);
         sui::transfer::public_transfer(feedback_authority, service_provider);
         clock::destroy_for_testing(clock_obj);
+
+        test_scenario::end(scene);
+    }
+
+    #[test]
+    public fun test_ptb_pay_and_issue() {
+        let service_provider = @0xA;
+        let client_agent = @0xB;
+
+        let mut scene = test_scenario::begin(service_provider);
+
+        // Initialize spend guard
+        let guard = payment::init_spend_guard(1000, service_provider, test_scenario::ctx(&mut scene));
+
+        test_scenario::next_tx(&mut scene, client_agent);
+
+        // Create test coin for client agent
+        let mut client_coin = sui::coin::mint_for_testing<sui::sui::SUI>(500, test_scenario::ctx(&mut scene));
+
+        // Test PTB atomic payment and NFT minting
+        let nft = payment::pay_and_issue_ptb(
+            &guard,
+            &mut client_coin,
+            100, // amount
+            SERVICE_ID,
+            5, // credits
+            std::option::none(), // no expiry
+            0, // tier
+            test_scenario::ctx(&mut scene),
+        );
+
+        // Verify NFT was created with correct fields
+        assert!(access_nft::credits_remaining(&nft) == 5, 0);
+        assert!(access_nft::owner(&nft) == client_agent, 0);
+        assert!(access_nft::kullanici_id(&nft) == client_agent, 0); // user_id check
+        assert!(sui::coin::value(&client_coin) == 400, 0); // 500 - 100 = 400
+
+        // Clean up
+        sui::transfer::public_transfer(nft, client_agent);
+        sui::transfer::public_transfer(guard, service_provider);
+        sui::transfer::public_transfer(client_coin, client_agent);
+
+        test_scenario::end(scene);
+    }
+
+    #[test]
+    public fun test_reputation_basarili_islem() {
+        let agent_addr = @0xA;
+
+        let mut scene = test_scenario::begin(agent_addr);
+
+        // Create reputation NFT
+        let mut reputation_nft = reputation_nft::init_reputation(
+            agent_addr,
+            test_scenario::ctx(&mut scene)
+        );
+
+        // Check initial metrics
+        assert!(reputation_nft::basarili_islem(&reputation_nft) == 0, 0);
+
+        // Create feedback authority
+        let feedback_auth = reputation_nft::create_feedback_authority(
+            agent_addr,
+            SERVICE_ID,
+            sui::object::id(&reputation_nft),
+            3600, // 1 hour
+            test_scenario::ctx(&mut scene)
+        );
+
+        // Add positive feedback
+        reputation_nft::add_positive(
+            &mut reputation_nft,
+            &feedback_auth,
+            1234567890,
+            test_scenario::ctx(&mut scene)
+        );
+
+        // Verify basarili_islem was incremented
+        assert!(reputation_nft::basarili_islem(&reputation_nft) == 1, 0);
+
+        // Clean up
+        sui::transfer::public_transfer(reputation_nft, agent_addr);
+        sui::transfer::public_transfer(feedback_auth, agent_addr);
 
         test_scenario::end(scene);
     }

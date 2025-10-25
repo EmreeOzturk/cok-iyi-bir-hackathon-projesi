@@ -1,138 +1,113 @@
 "use client";
 
-import { create } from "zustand";
-import { SuiClient } from "@mysten/sui/client";
-import { suiClient, formatBalance } from "@/lib/sui";
+import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
+import { useEffect, useState, useCallback } from "react";
+import { formatBalance } from "@/lib/sui";
+import { CONTRACT_CONFIG } from "@/lib/config";
 
-type WalletState = {
-  client: SuiClient;
-  connectedAccount: string | null;
-  isConnecting: boolean;
-  dailyLimit: number;
-  balances: Record<string, number>;
-  spendGuardId: string | null;
+export function useWalletStore() {
+  const currentAccount = useCurrentAccount();
+  const client = useSuiClient();
 
-  // Actions
-  connectWallet: () => Promise<void>;
-  disconnectWallet: () => void;
-  setAccount: (account: string | null) => void;
-  setDailyLimit: (limit: number) => void;
-  setBalances: (balances: Record<string, number>) => void;
-  setSpendGuard: (guardId: string) => void;
-  refreshBalances: () => Promise<void>;
-  createSpendGuard: (maxPerTx: number) => Promise<string | null>;
-  updateSpendGuardLimit: (guardId: string, newLimit: number) => Promise<void>;
-};
+  const [dailyLimit, setDailyLimit] = useState(1000);
+  const [balances, setBalances] = useState<Record<string, number>>({});
+  const [spendGuardId, setSpendGuardId] = useState<string | null>(null);
 
-export const useWalletStore = create<WalletState>((set, get) => ({
-  client: suiClient,
-  connectedAccount: null,
-  isConnecting: false,
-  dailyLimit: 1_000,
-  balances: {},
-  spendGuardId: null,
-
-  connectWallet: async () => {
-    set({ isConnecting: true });
-    try {
-      // Check if Sui Wallet is available (standard Sui wallet interface)
-      if (typeof window !== 'undefined' && window.suiWallet) {
-        const suiWallet = window.suiWallet;
-
-        // Check if wallet is connected
-        const { isConnected } = await suiWallet.hasPermissions();
-        if (!isConnected) {
-          throw new Error('Wallet not connected. Please connect your wallet first.');
-        }
-
-        // Get accounts
-        const accounts = await suiWallet.requestAccounts();
-        const account = accounts[0];
-
-        set({
-          connectedAccount: account,
-          isConnecting: false
-        });
-
-        // Load balances after connection
-        await get().refreshBalances();
-      } else {
-        throw new Error('No Sui wallet detected. Please install Sui Wallet or another Sui-compatible wallet.');
-      }
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      set({ isConnecting: false });
-      throw error;
-    }
-  },
-
-  disconnectWallet: () => {
-    set({
-      connectedAccount: null,
-      balances: {},
-      spendGuardId: null
-    });
-  },
-
-  setAccount: (account) => set({ connectedAccount: account }),
-  setDailyLimit: (limit) => set({ dailyLimit: limit }),
-  setBalances: (balances) => set({ balances }),
-  setSpendGuard: (guardId) => set({ spendGuardId: guardId }),
-
-  refreshBalances: async () => {
-    const { connectedAccount, client } = get();
-    if (!connectedAccount) return;
+  // Refresh balances when account changes
+  const refreshBalances = useCallback(async () => {
+    if (!currentAccount?.address) return;
 
     try {
       // Get SUI balance
       const suiBalance = await client.getBalance({
-        owner: connectedAccount,
-        coinType: '0x2::sui::SUI'
+        owner: currentAccount.address,
+        coinType: CONTRACT_CONFIG.SUI_COIN_TYPE,
       });
 
       // Get USDC balance (if available)
-      let usdcBalance = { totalBalance: '0' };
+      let usdcBalance = { totalBalance: "0" };
       try {
         usdcBalance = await client.getBalance({
-          owner: connectedAccount,
-          coinType: '0x2::sui::SUI' // Using SUI for now, would be USDC in production
+          owner: currentAccount.address,
+          coinType: CONTRACT_CONFIG.USDC_COIN_TYPE,
         });
       } catch {
         // USDC might not be available in testnet
-        console.log('USDC balance not available');
+        console.log("USDC balance not available");
       }
 
-      const balances = {
+      const newBalances = {
         SUI: parseFloat(formatBalance(BigInt(suiBalance.totalBalance))),
         USDC: parseFloat(formatBalance(BigInt(usdcBalance.totalBalance))),
       };
 
-      set({ balances });
+      setBalances(newBalances);
     } catch (error) {
-      console.error('Failed to refresh balances:', error);
+      console.error("Failed to refresh balances:", error);
     }
-  },
+  }, [currentAccount, client]);
 
-  createSpendGuard: async (maxPerTx: number): Promise<string | null> => {
-    const { connectedAccount } = get();
-    if (!connectedAccount) return null;
+  // Auto-refresh balances when account changes
+  useEffect(() => {
+    const updateBalances = async () => {
+      if (currentAccount?.address) {
+        await refreshBalances();
+      } else {
+        setBalances({});
+        setSpendGuardId(null);
+      }
+    };
+
+    updateBalances();
+  }, [currentAccount?.address, refreshBalances]);
+
+  const createSpendGuard = useCallback(async (maxPerTx: number): Promise<string | null> => {
+    if (!currentAccount?.address) return null;
 
     try {
       // This would create a SpendGuard on-chain
       // For now, return a mock ID
       const mockGuardId = `guard_${Date.now()}`;
-      set({ spendGuardId: mockGuardId, dailyLimit: maxPerTx });
+      setSpendGuardId(mockGuardId);
+      setDailyLimit(maxPerTx);
       return mockGuardId;
     } catch (error) {
-      console.error('Failed to create spend guard:', error);
+      console.error("Failed to create spend guard:", error);
       return null;
     }
-  },
+  }, [currentAccount?.address]);
 
-  updateSpendGuardLimit: async (guardId: string, newLimit: number) => {
+  const updateSpendGuardLimit = useCallback(async (guardId: string, newLimit: number) => {
     // This would update the spend guard on-chain
     // For now, just update local state
-    set({ dailyLimit: newLimit });
-  },
-}));
+    setDailyLimit(newLimit);
+  }, []);
+
+  return {
+    // Wallet state from dapp-kit
+    connectedAccount: currentAccount?.address || null,
+    isConnecting: false, // dapp-kit doesn't provide connecting state directly
+
+    // Custom state
+    dailyLimit,
+    balances,
+    spendGuardId,
+
+    // Actions - wallet connection is handled by dapp-kit components
+    connectWallet: () => {
+      // Wallet connection is handled by WalletProvider and wallet selector components
+      console.log("Use wallet selector component for connection");
+    },
+    disconnectWallet: () => {
+      // Wallet disconnection is handled by dapp-kit
+      console.log("Use wallet selector component for disconnection");
+    },
+    setDailyLimit,
+    setBalances,
+    setSpendGuard: setSpendGuardId,
+    refreshBalances,
+    createSpendGuard,
+    updateSpendGuardLimit,
+  };
+}
 

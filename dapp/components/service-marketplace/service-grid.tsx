@@ -4,10 +4,10 @@ import { useEffect } from "react";
 import { ServiceCard } from "@/components/service-marketplace/service-card";
 import { useContractStore } from "@/stores/use-contract-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
+import { ServiceProfile } from "@/lib/sui";
 
 // Helper function to map contract data to UI format
-const mapServiceToUI = (service: any) => {
-  const tierLabels = ["per_credit", "subscription", "free"];
+const mapServiceToUI = (service: ServiceProfile) => {
   const tierDisplay = ["trial", "standard", "premium"];
 
   return {

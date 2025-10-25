@@ -1,65 +1,30 @@
 "use client";
 
-import { create } from "zustand";
-import { SuiClient } from "@mysten/sui/client";
+import { useState, useCallback, useMemo } from "react";
+import { useSuiClient } from "@mysten/dapp-kit";
 import { AgentCommerceContract } from "@/lib/contracts";
-import { suiClient, ServiceProfile, AccessNFT, ReputationNFT } from "@/lib/sui";
-import { executeTransaction } from "@/lib/transaction-executor";
+import { ServiceProfile, AccessNFT, ReputationNFT } from "@/lib/sui";
+import { useTransactionExecutor } from "@/lib/transaction-executor";
 
-type ContractState = {
-  client: SuiClient;
-  contract: AgentCommerceContract;
-  registryId: string | null;
-  services: ServiceProfile[];
-  accessNfts: AccessNFT[];
-  reputationNft: ReputationNFT | null;
+export function useContractStore() {
+  const client = useSuiClient();
+  const { executeTransaction } = useTransactionExecutor();
 
-  // Actions
-  setRegistryId: (id: string) => void;
-  loadServices: () => Promise<void>;
-  loadAccessNfts: (owner: string) => Promise<void>;
-  loadReputationNft: (agentAddress: string) => Promise<void>;
-  registerAgent: (
-    agentId: string,
-    description: string,
-    pricing: { model_type: number; amount: number },
-    reputationNftId: string,
-    serviceEndpoint: string,
-    signerAddress: string
-  ) => Promise<void>;
-  purchaseService: (
-    guardId: string,
-    paymentCoinId: string,
-    serviceId: string,
-    amount: number,
-    credits: number
-  ) => Promise<string | null>;
-  consumeCredit: (accessNftId: string, clockId: string, caller: string) => Promise<void>;
-  provideFeedback: (
-    reputationNftId: string,
-    feedbackAuthorityId: string,
-    isPositive: boolean
-  ) => Promise<void>;
-};
+  const [registryId, setRegistryId] = useState<string | null>(null);
+  const [services, setServices] = useState<ServiceProfile[]>([]);
+  const [accessNfts, setAccessNfts] = useState<AccessNFT[]>([]);
+  const [reputationNft, setReputationNft] = useState<ReputationNFT | null>(null);
 
-export const useContractStore = create<ContractState>((set, get) => ({
-  client: suiClient,
-  contract: new AgentCommerceContract(suiClient),
-  registryId: null,
-  services: [],
-  accessNfts: [],
-  reputationNft: null,
+  // Create contract instance with current client
+  const contract = useMemo(() => new AgentCommerceContract(client), [client]);
 
-  setRegistryId: (id) => set({ registryId: id }),
-
-  loadServices: async () => {
-    const { registryId } = get();
+  const loadServices = useCallback(async () => {
     if (!registryId) return;
 
     try {
       // This would need to query all agents from the registry
       // For now, using mock data
-      const services: ServiceProfile[] = [
+      const mockServices: ServiceProfile[] = [
         {
           owner: "0x123...",
           description: "Flight booking and reservation service",
@@ -67,19 +32,32 @@ export const useContractStore = create<ContractState>((set, get) => ({
           reputation: "0x456...",
           service_endpoint: "https://api.flight-service.com",
         },
-        // Add more services...
+        {
+          owner: "0x789...",
+          description: "Hotel reservation and booking service",
+          pricing: { model_type: 0, amount: 150 }, // PER_CREDIT
+          reputation: "0xabc...",
+          service_endpoint: "https://api.hotel-service.com",
+        },
+        {
+          owner: "0xdef...",
+          description: "Restaurant recommendations and reservations",
+          pricing: { model_type: 0, amount: 75 }, // PER_CREDIT
+          reputation: "0xfed...",
+          service_endpoint: "https://api.restaurant-service.com",
+        },
       ];
-      set({ services });
+      setServices(mockServices);
     } catch (error) {
       console.error("Failed to load services:", error);
     }
-  },
+  }, [registryId]);
 
-  loadAccessNfts: async (owner: string) => {
+  const loadAccessNfts = useCallback(async (owner: string) => {
     try {
       // Query owned AccessNFTs from Sui
       // This would require querying the user's objects and filtering for AccessNFTs
-      const accessNfts: AccessNFT[] = [
+      const mockAccessNfts: AccessNFT[] = [
         {
           id: "0x789...",
           service_id: "flight-service",
@@ -87,18 +65,24 @@ export const useContractStore = create<ContractState>((set, get) => ({
           credits_remaining: 5,
           tier: 1,
         },
-        // Add more NFTs...
+        {
+          id: "0xdef...",
+          service_id: "hotel-service",
+          owner,
+          credits_remaining: 3,
+          tier: 1,
+        },
       ];
-      set({ accessNfts });
+      setAccessNfts(mockAccessNfts);
     } catch (error) {
       console.error("Failed to load AccessNFTs:", error);
     }
-  },
+  }, []);
 
-  loadReputationNft: async (agentAddress: string) => {
+  const loadReputationNft = useCallback(async (agentAddress: string) => {
     try {
       // Query reputation NFT for the agent
-      const reputationNft: ReputationNFT = {
+      const mockReputationNft: ReputationNFT = {
         id: "0xabc...",
         agent: agentAddress,
         total_interactions: 10,
@@ -106,13 +90,13 @@ export const useContractStore = create<ContractState>((set, get) => ({
         negative: 2,
         last_feedback: Date.now(),
       };
-      set({ reputationNft });
+      setReputationNft(mockReputationNft);
     } catch (error) {
       console.error("Failed to load reputation NFT:", error);
     }
-  },
+  }, []);
 
-  registerAgent: async (
+  const registerAgent = useCallback(async (
     agentId: string,
     description: string,
     pricing: { model_type: number; amount: number },
@@ -120,7 +104,6 @@ export const useContractStore = create<ContractState>((set, get) => ({
     serviceEndpoint: string,
     signerAddress: string
   ) => {
-    const { registryId, contract } = get();
     if (!registryId) throw new Error("Registry not initialized");
 
     try {
@@ -140,22 +123,20 @@ export const useContractStore = create<ContractState>((set, get) => ({
       console.log("Agent registration completed:", result.digest);
 
       // Refresh services after registration
-      await get().loadServices();
+      await loadServices();
     } catch (error) {
       console.error("Failed to register agent:", error);
       throw error;
     }
-  },
+  }, [registryId, contract, executeTransaction, loadServices]);
 
-  purchaseService: async (
+  const purchaseService = useCallback(async (
     guardId: string,
     paymentCoinId: string,
     serviceId: string,
     amount: number,
     credits: number
   ): Promise<string | null> => {
-    const { contract } = get();
-
     try {
       const tx = await contract.payAndIssue(
         guardId,
@@ -176,11 +157,9 @@ export const useContractStore = create<ContractState>((set, get) => ({
       console.error("Failed to purchase service:", error);
       return null;
     }
-  },
+  }, [contract, executeTransaction]);
 
-  consumeCredit: async (accessNftId: string, clockId: string, caller: string) => {
-    const { contract } = get();
-
+  const consumeCredit = useCallback(async (accessNftId: string, clockId: string, caller: string) => {
     try {
       const tx = await contract.consumeCredit(accessNftId, clockId, caller);
 
@@ -189,20 +168,18 @@ export const useContractStore = create<ContractState>((set, get) => ({
       console.log("Consume credit transaction completed:", result.digest);
 
       // Refresh AccessNFTs after consumption
-      await get().loadAccessNfts(caller);
+      await loadAccessNfts(caller);
     } catch (error) {
       console.error("Failed to consume credit:", error);
       throw error;
     }
-  },
+  }, [contract, executeTransaction, loadAccessNfts]);
 
-  provideFeedback: async (
+  const provideFeedback = useCallback(async (
     reputationNftId: string,
     feedbackAuthorityId: string,
     isPositive: boolean
   ) => {
-    const { contract } = get();
-
     try {
       const tx = isPositive
         ? await contract.addPositiveFeedback(reputationNftId, feedbackAuthorityId, Date.now())
@@ -213,13 +190,30 @@ export const useContractStore = create<ContractState>((set, get) => ({
       console.log("Feedback transaction completed:", result.digest);
 
       // Refresh reputation data
-      const { reputationNft } = get();
       if (reputationNft) {
-        await get().loadReputationNft(reputationNft.agent);
+        await loadReputationNft(reputationNft.agent);
       }
     } catch (error) {
       console.error("Failed to provide feedback:", error);
       throw error;
     }
-  },
-}));
+  }, [contract, executeTransaction, reputationNft, loadReputationNft]);
+
+  return {
+    // State
+    registryId,
+    services,
+    accessNfts,
+    reputationNft,
+
+    // Actions
+    setRegistryId,
+    loadServices,
+    loadAccessNfts,
+    loadReputationNft,
+    registerAgent,
+    purchaseService,
+    consumeCredit,
+    provideFeedback,
+  };
+}
