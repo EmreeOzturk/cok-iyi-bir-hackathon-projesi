@@ -1,14 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { AgentCommerceContract } from "@/lib/contracts";
 import { CONTRACT_ADDRESSES } from "@/lib/config";
 import { useTransactionExecutor } from "@/lib/transaction-executor";
 
 export function useRegistry() {
-  const client = useSuiClient();
   const { executeTransaction } = useTransactionExecutor();
 
   const [registryId, setRegistryId] = useState<string | null>(null);

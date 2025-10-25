@@ -52,14 +52,18 @@ export const TransactionComposer = () => {
       // Convert amount to smallest unit (assuming 2 decimals for USDC)
       const amountInSmallestUnit = Math.floor(amountNum * 100);
 
-      // Mock payment coin ID (would be selected from user's coins)
-      const paymentCoinId = "0xmock-coin-id";
+      // TODO: Select real payment coin from user's SUI balance
+      // For now, this is a placeholder - real implementation would:
+      // 1. Query user's SUI coins
+      // 2. Select appropriate coin for payment
+      const paymentCoinId = "0xplaceholder-coin-id";
 
-      // Mock guard ID since spend guard is not implemented
-      const mockGuardId = "0xmock-guard-id";
+      // TODO: Create or select spend guard for the service provider
+      // For now, this is a placeholder
+      const guardId = "0xplaceholder-guard-id";
 
       const nftId = await purchaseService(
-        mockGuardId,
+        guardId,
         paymentCoinId,
         serviceId.trim(),
         amountInSmallestUnit,

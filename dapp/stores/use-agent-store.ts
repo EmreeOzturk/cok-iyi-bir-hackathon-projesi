@@ -1,89 +1,96 @@
-import { create } from "zustand";
-import type { ReputationNFT, AgentWithReputation } from "@/lib/types";
-import { MOCK_AGENTS, createMockAgentReputation } from "@/lib/mock-data";
+"use client";
 
-interface AgentStoreState {
-  // Agent data
-  agents: AgentWithReputation[];
-  selectedAgent: AgentWithReputation | null;
+import { useState, useCallback } from "react";
+import { useSuiClient } from "@mysten/dapp-kit";
+import type { AgentWithReputation } from "@/lib/types";
 
-  // Loading & UI
-  isLoading: boolean;
-  error: string | null;
+export function useAgentStore(registryId: string | null) {
+  const client = useSuiClient();
+  const [agents, setAgents] = useState<AgentWithReputation[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<AgentWithReputation | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Reputation data cache
-  reputationCache: Record<string, ReputationNFT>;
-}
+  const fetchAgents = useCallback(async () => {
+    if (!registryId) return;
 
-interface AgentStoreActions {
-  // Data fetching
-  fetchAgents: () => Promise<void>;
-  fetchAgentReputation: (agentId: string) => Promise<void>;
+    setIsLoading(true);
+    setError(null);
 
-  // Selection
-  selectAgent: (agent: AgentWithReputation) => void;
-  clearSelection: () => void;
-
-  // State management
-  setError: (error: string | null) => void;
-  setLoading: (loading: boolean) => void;
-}
-
-type AgentStore = AgentStoreState & AgentStoreActions;
-
-
-export const useAgentStore = create<AgentStore>((set, get) => ({
-  // Initial state
-  agents: [],
-  selectedAgent: null,
-  isLoading: false,
-  error: null,
-  reputationCache: {},
-
-  // Data fetching
-  fetchAgents: async () => {
-    set({ isLoading: true, error: null });
     try {
-      // TODO: Replace with actual contract call when deployed
-      // For now, use mock data
-      set({ agents: MOCK_AGENTS, isLoading: false });
+      // Query the agent registry for all registered agents
+      const dynamicFields = await client.getDynamicFields({
+        parentId: registryId,
+      });
+
+      const agentsList: AgentWithReputation[] = [];
+
+      for (const field of dynamicFields.data) {
+        const agentId = field.name.value as string;
+
+        // Get the agent profile from dynamic field
+        const profileObj = await client.getDynamicFieldObject({
+          parentId: registryId,
+          name: {
+            type: '0x2::object::ID',
+            value: agentId,
+          },
+        });
+
+        if (profileObj.data?.content?.dataType === 'moveObject') {
+          const fields = profileObj.data.content.fields as {
+            agent_name: string;
+            owner: string;
+            description: string;
+            pricing: { fields: { model_type: number; amount: number } };
+            reputation: string;
+            service_endpoint: string;
+          };
+
+          agentsList.push({
+            id: agentId,
+            agent_name: fields.agent_name,
+            owner: fields.owner,
+            description: fields.description,
+            pricing: {
+              model_type: fields.pricing.fields.model_type,
+              amount: fields.pricing.fields.amount,
+            },
+            reputation: fields.reputation,
+            service_endpoint: fields.service_endpoint,
+            // TODO: Calculate these from reputation data
+            reputation_score: 0,
+            verified: false,
+            active_users: 0,
+            total_services_delivered: 0,
+          });
+        }
+      }
+
+      setAgents(agentsList);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to fetch agents";
-      set({ error: errorMessage, isLoading: false });
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-  },
+  }, [registryId, client]);
 
-  fetchAgentReputation: async (agentId: string) => {
-    try {
-      // TODO: Replace with actual contract call
-      // For now, mock reputation data
-      const mockReputation = createMockAgentReputation(agentId);
+  const selectAgent = useCallback((agent: AgentWithReputation) => {
+    setSelectedAgent(agent);
+  }, []);
 
-      set((state) => ({
-        reputationCache: {
-          ...state.reputationCache,
-          [agentId]: mockReputation,
-        },
-      }));
-    } catch (error) {
-      console.error(`Failed to fetch reputation for ${agentId}:`, error);
-    }
-  },
+  const clearSelection = useCallback(() => {
+    setSelectedAgent(null);
+  }, []);
 
-  // Selection
-  selectAgent: (agent: AgentWithReputation) => {
-    set({ selectedAgent: agent });
-  },
-
-  clearSelection: () => {
-    set({ selectedAgent: null });
-  },
-
-  setError: (error: string | null) => {
-    set({ error });
-  },
-
-  setLoading: (loading: boolean) => {
-    set({ isLoading: loading });
-  },
-}));
+  return {
+    agents,
+    selectedAgent,
+    isLoading,
+    error,
+    fetchAgents,
+    selectAgent,
+    clearSelection,
+  };
+}

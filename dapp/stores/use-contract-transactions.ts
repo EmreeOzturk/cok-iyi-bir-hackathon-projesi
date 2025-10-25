@@ -4,7 +4,6 @@ import { useCallback } from "react";
 import { useSuiClient } from "@mysten/dapp-kit";
 import { AgentCommerceContract } from "@/lib/contracts";
 import { useTransactionExecutor } from "@/lib/transaction-executor";
-import { CONTRACT_CONFIG } from "@/lib/config";
 
 export function useContractTransactions(registryId: string | null) {
   const client = useSuiClient();
@@ -67,9 +66,10 @@ export function useContractTransactions(registryId: string | null) {
       const result = await executeTransaction(tx);
       console.log("Purchase transaction completed:", result.digest);
 
-      // Extract NFT ID from transaction effects (would need to parse the actual effects)
-      // For now, return a mock ID
-      return "0xnew-nft-id";
+      // TODO: Extract NFT ID from transaction effects
+      // The transaction should create an AccessNFT object
+      // For now, this is a placeholder
+      return "0xplaceholder-nft-id";
     } catch (error) {
       console.error("Failed to purchase service:", error);
       return null;
