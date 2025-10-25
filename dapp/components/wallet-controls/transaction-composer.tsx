@@ -12,18 +12,77 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { useWalletStore } from "@/stores/use-wallet-store";
+import { useContractStore } from "@/stores/use-contract-store";
 
 export const TransactionComposer = () => {
-  const { connectedAccount } = useWalletStore();
+  const { connectedAccount, spendGuardId, balances } = useWalletStore();
+  const { purchaseService } = useContractStore();
   const [serviceId, setServiceId] = useState("");
   const [amount, setAmount] = useState("0.00");
+  const [credits, setCredits] = useState("5");
+  const [isComposing, setIsComposing] = useState(false);
 
-  const handleCompose = () => {
+  const handleCompose = async () => {
     if (!connectedAccount) {
-      // TODO: surface toast using UI hook
+      alert("Please connect your wallet first");
       return;
     }
-    // TODO: integrate with Sui transaction builder + Mastra orchestrator
+
+    if (!spendGuardId) {
+      alert("Please create a spend guard first");
+      return;
+    }
+
+    if (!serviceId.trim()) {
+      alert("Please enter a service ID");
+      return;
+    }
+
+    const amountNum = parseFloat(amount);
+    const creditsNum = parseInt(credits);
+
+    if (amountNum <= 0 || creditsNum <= 0) {
+      alert("Please enter valid amount and credits");
+      return;
+    }
+
+    // Check balance
+    if (balances.USDC < amountNum) {
+      alert("Insufficient USDC balance");
+      return;
+    }
+
+    setIsComposing(true);
+    try {
+      // Convert amount to smallest unit (assuming 2 decimals for USDC)
+      const amountInSmallestUnit = Math.floor(amountNum * 100);
+
+      // Mock payment coin ID (would be selected from user's coins)
+      const paymentCoinId = "0xmock-coin-id";
+
+      const nftId = await purchaseService(
+        spendGuardId,
+        paymentCoinId,
+        serviceId.trim(),
+        amountInSmallestUnit,
+        creditsNum
+      );
+
+      if (nftId) {
+        alert(`PTB executed successfully! AccessNFT ID: ${nftId}`);
+        // Reset form
+        setServiceId("");
+        setAmount("0.00");
+        setCredits("5");
+      } else {
+        alert("Failed to execute PTB");
+      }
+    } catch (error) {
+      console.error("PTB execution failed:", error);
+      alert("Failed to execute programmable transaction");
+    } finally {
+      setIsComposing(false);
+    }
   };
 
   return (
@@ -42,8 +101,9 @@ export const TransactionComposer = () => {
           <input
             value={serviceId}
             onChange={(event) => setServiceId(event.target.value)}
-            placeholder="0x..."
+            placeholder="e.g., flight-orchestrator"
             className="rounded-full border border-border/50 bg-background px-4 py-2 text-sm"
+            disabled={isComposing}
           />
         </div>
         <div className="flex flex-col gap-2">
@@ -54,13 +114,38 @@ export const TransactionComposer = () => {
             value={amount}
             type="number"
             min="0"
+            step="0.01"
             onChange={(event) => setAmount(event.target.value)}
             className="rounded-full border border-border/50 bg-background px-4 py-2 text-sm"
+            disabled={isComposing}
           />
         </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+            Credits
+          </label>
+          <input
+            value={credits}
+            type="number"
+            min="1"
+            onChange={(event) => setCredits(event.target.value)}
+            className="rounded-full border border-border/50 bg-background px-4 py-2 text-sm"
+            disabled={isComposing}
+          />
+        </div>
+        {connectedAccount && (
+          <div className="text-xs text-muted-foreground">
+            Balance: {balances.USDC?.toFixed(2) || "0.00"} USDC
+          </div>
+        )}
       </CardContent>
       <CardFooter className="justify-end">
-        <Button onClick={handleCompose}>Compose PTB</Button>
+        <Button
+          onClick={handleCompose}
+          disabled={isComposing || !connectedAccount || !spendGuardId}
+        >
+          {isComposing ? "Composing PTB..." : "Compose PTB"}
+        </Button>
       </CardFooter>
     </Card>
   );
