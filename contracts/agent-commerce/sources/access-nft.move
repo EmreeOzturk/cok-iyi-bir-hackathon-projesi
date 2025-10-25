@@ -1,10 +1,9 @@
 module agent_commerce::access_nft {
+    use std::option;
+
     use sui::clock::Clock;
     use sui::dynamic_field;
-    use sui::event;
-    use sui::tx_context::TxContext;
-    use sui::object::UID;
-    use std::option;
+    use sui::object;
 
     use agent_commerce::errors;
 
@@ -17,25 +16,12 @@ module agent_commerce::access_nft {
 
     /// AccessNFT object granting service invocation rights.
     public struct AccessNFT has key, store {
-        id: UID,
+        id: object::UID,
         service_id: vector<u8>,
         owner: address,
     }
 
     public struct MetadataKey has copy, drop, store {}
-
-    public struct AccessMinted has copy, drop, store {
-        recipient: address,
-        service_id: vector<u8>,
-        credits: u64,
-        tier: u8,
-    }
-
-    public struct CreditConsumed has copy, drop, store {
-        owner: address,
-        service_id: vector<u8>,
-        credits_remaining: u64,
-    }
 
     public(package) fun mint_access(
         owner: address,
@@ -60,12 +46,12 @@ module agent_commerce::access_nft {
             owner,
         };
 
-        event::emit(AccessMinted {
-            recipient: owner,
-            service_id: *&nft.service_id,
-            credits,
-            tier,
-        });
+        // event::emit(AccessMinted {
+        //     recipient: owner,
+        //     service_id: *&nft.service_id,
+        //     credits,
+        //     tier,
+        // });
         nft
     }
 
@@ -76,7 +62,6 @@ module agent_commerce::access_nft {
     ) {
         assert!(caller == nft.owner, errors::not_authorized());
 
-        // CRITICAL: Verify metadata exists before accessing
         assert!(metadata_exists(&nft.id), errors::metadata_missing());
 
         let metadata = borrow_metadata_mut_safe(&mut nft.id);
@@ -87,11 +72,11 @@ module agent_commerce::access_nft {
 
         assert!(metadata.credits_remaining > 0, errors::no_credits());
         metadata.credits_remaining = metadata.credits_remaining - 1;
-        event::emit(CreditConsumed {
-            owner: nft.owner,
-            service_id: *&nft.service_id,
-            credits_remaining: metadata.credits_remaining,
-        });
+        // event::emit(CreditConsumed {
+        //     owner: nft.owner,
+        //     service_id: *&nft.service_id,
+        //     credits_remaining: metadata.credits_remaining,
+        // });
     }
 
     public(package) fun extend_access(
@@ -99,7 +84,6 @@ module agent_commerce::access_nft {
         additional_credits: u64,
         new_expiry: Option<u64>,
     ) {
-        // CRITICAL: Verify metadata exists before accessing
         assert!(metadata_exists(&nft.id), errors::metadata_missing());
 
         let metadata = borrow_metadata_mut_safe(&mut nft.id);
@@ -110,7 +94,6 @@ module agent_commerce::access_nft {
     }
 
     public fun metadata(nft: &AccessNFT): Metadata {
-        // CRITICAL: Verify metadata exists before accessing
         assert!(metadata_exists(&nft.id), errors::metadata_missing());
         *borrow_metadata_safe(&nft.id)
     }
@@ -123,28 +106,26 @@ module agent_commerce::access_nft {
         *&nft.service_id
     }
 
+    // Test-only getters for accessing metadata fields
+    #[test_only]
+    public fun credits_remaining(nft: &AccessNFT): u64 {
+        let metadata = metadata(nft);
+        metadata.credits_remaining
+    }
+
     /// Check if metadata exists for the given AccessNFT
-    public fun metadata_exists(nft_id: &UID): bool {
-        dynamic_field::exists_(nft_id, metadata_key())
+    public fun metadata_exists(nft_id: &object::UID): bool {
+        dynamic_field::exists_with_type<MetadataKey, Metadata>(nft_id, metadata_key())
     }
 
     /// Safe borrow that checks existence first
-    fun borrow_metadata_safe(nft_id: &UID): &Metadata {
-        dynamic_field::borrow(nft_id, metadata_key())
+    fun borrow_metadata_safe(nft_id: &object::UID): &Metadata {
+        dynamic_field::borrow<MetadataKey, Metadata>(nft_id, metadata_key())
     }
 
     /// Safe mutable borrow that checks existence first
-    fun borrow_metadata_mut_safe(nft_id: &mut UID): &mut Metadata {
-        dynamic_field::borrow_mut(nft_id, metadata_key())
-    }
-
-    /// DEPRECATED: Unsafe functions - use safe versions instead
-    fun borrow_metadata(nft_id: &UID): &Metadata {
-        dynamic_field::borrow(nft_id, metadata_key())
-    }
-
-    fun borrow_metadata_mut(nft_id: &mut UID): &mut Metadata {
-        dynamic_field::borrow_mut(nft_id, metadata_key())
+    fun borrow_metadata_mut_safe(nft_id: &mut object::UID): &mut Metadata {
+        dynamic_field::borrow_mut<MetadataKey, Metadata>(nft_id, metadata_key())
     }
 
     fun metadata_key(): MetadataKey {

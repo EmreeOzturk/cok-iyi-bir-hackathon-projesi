@@ -20,6 +20,18 @@ module agent_commerce::errors {
     /// Registry not initialized or misconfigured.
     const E_REGISTRY_NOT_INITIALIZED: u64 = 7;
 
+    /// Invalid pricing model provided.
+    const E_INVALID_PRICING_MODEL: u64 = 8;
+
+    /// Agent is not registered in the system.
+    const E_AGENT_NOT_REGISTERED: u64 = 9;
+
+    /// Feedback authority has expired.
+    const E_FEEDBACK_AUTHORITY_EXPIRED: u64 = 10;
+
+    /// Invalid input parameters provided.
+    const E_INVALID_INPUT: u64 = 11;
+
     public(package) fun not_authorized(): u64 {
         E_NOT_AUTHORIZED
     }
@@ -46,6 +58,22 @@ module agent_commerce::errors {
 
     public(package) fun registry_not_initialized(): u64 {
         E_REGISTRY_NOT_INITIALIZED
+    }
+
+    public(package) fun invalid_pricing_model(): u64 {
+        E_INVALID_PRICING_MODEL
+    }
+
+    public(package) fun agent_not_registered(): u64 {
+        E_AGENT_NOT_REGISTERED
+    }
+
+    public(package) fun feedback_authority_expired(): u64 {
+        E_FEEDBACK_AUTHORITY_EXPIRED
+    }
+
+    public(package) fun invalid_input(): u64 {
+        E_INVALID_INPUT
     }
 }
 
