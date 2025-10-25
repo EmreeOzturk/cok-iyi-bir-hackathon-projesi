@@ -9,9 +9,7 @@ export function useWalletStore() {
   const currentAccount = useCurrentAccount();
   const client = useSuiClient();
 
-  const [dailyLimit, setDailyLimit] = useState(1000);
   const [balances, setBalances] = useState<Record<string, number>>({});
-  const [spendGuardId, setSpendGuardId] = useState<string | null>(null);
 
   // Refresh balances when account changes
   const refreshBalances = useCallback(async () => {
@@ -54,34 +52,11 @@ export function useWalletStore() {
         await refreshBalances();
       } else {
         setBalances({});
-        setSpendGuardId(null);
       }
     };
 
     updateBalances();
   }, [currentAccount?.address, refreshBalances]);
-
-  const createSpendGuard = useCallback(async (maxPerTx: number): Promise<string | null> => {
-    if (!currentAccount?.address) return null;
-
-    try {
-      // This would create a SpendGuard on-chain
-      // For now, return a mock ID
-      const mockGuardId = `guard_${Date.now()}`;
-      setSpendGuardId(mockGuardId);
-      setDailyLimit(maxPerTx);
-      return mockGuardId;
-    } catch (error) {
-      console.error("Failed to create spend guard:", error);
-      return null;
-    }
-  }, [currentAccount?.address]);
-
-  const updateSpendGuardLimit = useCallback(async (guardId: string, newLimit: number) => {
-    // This would update the spend guard on-chain
-    // For now, just update local state
-    setDailyLimit(newLimit);
-  }, []);
 
   return {
     // Wallet state from dapp-kit
@@ -89,9 +64,7 @@ export function useWalletStore() {
     isConnecting: false, // dapp-kit doesn't provide connecting state directly
 
     // Custom state
-    dailyLimit,
     balances,
-    spendGuardId,
 
     // Actions - wallet connection is handled by dapp-kit components
     connectWallet: () => {
@@ -102,12 +75,8 @@ export function useWalletStore() {
       // Wallet disconnection is handled by dapp-kit
       console.log("Use wallet selector component for disconnection");
     },
-    setDailyLimit,
     setBalances,
-    setSpendGuard: setSpendGuardId,
     refreshBalances,
-    createSpendGuard,
-    updateSpendGuardLimit,
   };
 }
 

@@ -15,7 +15,7 @@ import { useWalletStore } from "@/stores/use-wallet-store";
 import { useContractStore } from "@/stores/use-contract-store";
 
 export const TransactionComposer = () => {
-  const { connectedAccount, spendGuardId, balances } = useWalletStore();
+  const { connectedAccount, balances } = useWalletStore();
   const { purchaseService } = useContractStore();
   const [serviceId, setServiceId] = useState("");
   const [amount, setAmount] = useState("0.00");
@@ -25,11 +25,6 @@ export const TransactionComposer = () => {
   const handleCompose = async () => {
     if (!connectedAccount) {
       alert("Please connect your wallet first");
-      return;
-    }
-
-    if (!spendGuardId) {
-      alert("Please create a spend guard first");
       return;
     }
 
@@ -60,8 +55,11 @@ export const TransactionComposer = () => {
       // Mock payment coin ID (would be selected from user's coins)
       const paymentCoinId = "0xmock-coin-id";
 
+      // Mock guard ID since spend guard is not implemented
+      const mockGuardId = "0xmock-guard-id";
+
       const nftId = await purchaseService(
-        spendGuardId,
+        mockGuardId,
         paymentCoinId,
         serviceId.trim(),
         amountInSmallestUnit,
@@ -142,7 +140,7 @@ export const TransactionComposer = () => {
       <CardFooter className="justify-end">
         <Button
           onClick={handleCompose}
-          disabled={isComposing || !connectedAccount || !spendGuardId}
+          disabled={isComposing || !connectedAccount}
         >
           {isComposing ? "Composing PTB..." : "Compose PTB"}
         </Button>

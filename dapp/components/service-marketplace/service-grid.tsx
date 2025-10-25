@@ -1,61 +1,76 @@
 "use client";
 
 import { useEffect } from "react";
-import { ServiceCard } from "@/components/service-marketplace/service-card";
-import { useContractStore } from "@/stores/use-contract-store";
-import { useWalletStore } from "@/stores/use-wallet-store";
-import { ServiceProfile } from "@/lib/sui";
+import { ServiceCard } from "./service-card";
+import { useAgentStore } from "@/stores/use-agent-store";
 
-// Helper function to map contract data to UI format
-const mapServiceToUI = (service: ServiceProfile) => {
-  const tierDisplay = ["trial", "standard", "premium"];
+export function ServiceGrid() {
+  const {
+    agents,
+    fetchAgents,
+    isLoading,
+    error,
+    selectAgent,
+  } = useAgentStore();
 
-  return {
-    name: service.description.split(" ")[0] || "Unknown Service",
-    description: service.description,
-    price: `${service.pricing.amount / 100} USDC`, // Convert from smallest unit
-    tier: tierDisplay[service.pricing.model_type] || "trial",
-    reputation: 4.5, // Would calculate from reputation NFT data
-  };
-};
-
-export const ServiceGrid = () => {
-  const { services, loadServices } = useContractStore();
-  const { connectedAccount } = useWalletStore();
-
+  // Load agents on mount
   useEffect(() => {
-    if (connectedAccount) {
-      loadServices();
+    if (agents.length === 0) {
+      fetchAgents();
     }
-  }, [connectedAccount, loadServices]);
-
-  // Show loading state or empty state
-  if (!connectedAccount) {
-    return (
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <div className="col-span-full text-center py-8 text-muted-foreground">
-          Please connect your wallet to view available services
-        </div>
-      </section>
-    );
-  }
-
-  if (services.length === 0) {
-    return (
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <div className="col-span-full text-center py-8 text-muted-foreground">
-          Loading services...
-        </div>
-      </section>
-    );
-  }
+  }, [agents.length, fetchAgents]);
 
   return (
-    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {services.map((service, index) => (
-        <ServiceCard key={index} service={mapServiceToUI(service)} />
-      ))}
-    </section>
+    <div className="space-y-8">
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div
+              key={i}
+              className="h-96 rounded-xl bg-muted animate-pulse"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-6 text-center">
+          <p className="text-red-600 font-medium">Error loading agents</p>
+          <p className="text-red-600/70 text-sm mt-1">{error}</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && agents.length === 0 && !error && (
+        <div className="rounded-lg bg-muted/50 border border-border p-12 text-center">
+          <p className="text-muted-foreground font-medium">No agents found</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            No agents are currently available.
+          </p>
+        </div>
+      )}
+
+      {/* Grid */}
+      {!isLoading && agents.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {agents.map((agent) => (
+            <ServiceCard
+              key={agent.id}
+              agent={agent}
+              onSelect={selectAgent}
+              onPurchase={(agent) => {
+                selectAgent(agent);
+                // TODO: Trigger purchase flow
+                console.log("Purchase clicked for:", agent.agent_name);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
-};
+}
 

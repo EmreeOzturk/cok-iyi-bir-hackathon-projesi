@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
 import { useEffect } from "react";
@@ -11,7 +12,6 @@ import { formatAddress } from "@/lib/sui";
 export const AgentWalletSummary = () => {
   const {
     connectedAccount,
-    dailyLimit,
     balances,
     refreshBalances
   } = useWalletStore();
@@ -20,7 +20,7 @@ export const AgentWalletSummary = () => {
     if (connectedAccount) {
       refreshBalances();
     }
-  }, [connectedAccount, refreshBalances]);
+  }, [connectedAccount]);
 
   return (
     <aside className="flex w-full flex-col gap-4 rounded-3xl border border-border/50 bg-white/70 p-6 text-sm shadow-sm backdrop-blur-md dark:bg-white/5 lg:w-[320px]">
@@ -48,13 +48,6 @@ export const AgentWalletSummary = () => {
             <span>USDC Balance:</span>
             <span className="font-medium">{balances.USDC?.toFixed(2) || "0.00"} USDC</span>
           </div>
-          <div className="flex justify-between">
-            <span>Daily spend limit:</span>
-            <span className="font-medium">{dailyLimit.toLocaleString()} USDC</span>
-          </div>
-          <p className="mt-2">
-            Budget guard aktif. Limit üzerine çıkmaya çalışan PTB işlemleri önceden engellenecek.
-          </p>
         </div>
       )}
 

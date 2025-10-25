@@ -2,13 +2,7 @@
 
 import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
-
-export interface TransactionResult {
-  digest: string;
-  effects?: unknown;
-  events?: unknown;
-  balanceChanges?: unknown;
-}
+import type { TransactionResult } from './types';
 
 /**
  * Transaction executor hook using dapp-kit

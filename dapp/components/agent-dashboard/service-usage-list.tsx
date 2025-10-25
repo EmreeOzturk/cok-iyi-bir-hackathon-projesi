@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
 import { useEffect } from "react";
@@ -16,7 +17,7 @@ export const ServiceUsageList = () => {
     if (connectedAccount) {
       loadAccessNfts(connectedAccount);
     }
-  }, [connectedAccount, loadAccessNfts]);
+  }, [connectedAccount]);
 
   const handleConsumeCredit = async (accessNftId: string) => {
     if (!connectedAccount) return;

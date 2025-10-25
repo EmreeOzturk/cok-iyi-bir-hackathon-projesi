@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CpuChipIcon, HomeIcon, ShoppingBagIcon, WalletIcon } from "@heroicons/react/24/outline";
+import { CpuChipIcon, HomeIcon, ShoppingBagIcon, WalletIcon, PlusIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { WalletConnection } from "./wallet-connection";
 import { useWalletStore } from "@/stores/use-wallet-store";
 
 const navigation = [
   { name: "Home", href: "/", icon: HomeIcon },
+  { name: "Create Agent", href: "/create", icon: PlusIcon },
+  { name: "My Agents", href: "/agents", icon: UserGroupIcon },
   { name: "Marketplace", href: "/service-marketplace", icon: ShoppingBagIcon },
   { name: "Dashboard", href: "/agent-dashboard", icon: CpuChipIcon },
   { name: "Wallet", href: "/wallet-controls", icon: WalletIcon },

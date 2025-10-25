@@ -1,6 +1,4 @@
-// Configuration for SuiPay Agent contracts
-// Update these addresses after deploying your contracts
-
+// Contract configuration and addresses
 export const CONTRACT_CONFIG = {
   // Package ID of the deployed agent-commerce package
   PACKAGE_ID: process.env.NEXT_PUBLIC_PACKAGE_ID || '0x0',
@@ -21,11 +19,8 @@ export const CONTRACT_CONFIG = {
   NETWORK: process.env.NEXT_PUBLIC_NETWORK || 'testnet',
 } as const;
 
-export const isConfigured = () => {
-  return CONTRACT_CONFIG.PACKAGE_ID !== '0x0' && CONTRACT_CONFIG.REGISTRY_ID !== '0x0';
-};
-
-export const getContractAddresses = () => ({
-  agent_commerce: CONTRACT_CONFIG.PACKAGE_ID,
-  agent_registry: CONTRACT_CONFIG.REGISTRY_ID,
-});
+// Contract addresses derived from config
+export const CONTRACT_ADDRESSES = {
+  AGENT_COMMERCE_PACKAGE: CONTRACT_CONFIG.PACKAGE_ID,
+  AGENT_REGISTRY: CONTRACT_CONFIG.REGISTRY_ID,
+} as const;
