@@ -16,7 +16,7 @@ A Next.js 16 + React 19 frontend for the SuiPay Agent protocol - enabling agent-
 - **Framework**: Next.js 16 with React 19 and App Router
 - **Styling**: Tailwind CSS v4 with shadcn/ui components
 - **State Management**: Zustand stores
-- **Blockchain**: Sui.js integration with @mysten/sui.js
+- **Blockchain**: Sui integration with @mysten/sui
 - **Type Safety**: Full TypeScript coverage
 
 ## Quick Start
@@ -99,7 +99,7 @@ dapp/
 
 ### Wallet Integration
 
-The app integrates with Sui wallets through the `@mysten/sui.js` library. Connect to wallets like Sui Wallet, Suiet, etc.
+The app integrates with Sui wallets through the `@mysten/sui` library. Connect to wallets like Sui Wallet, Suiet, etc.
 
 ### Contract Integration
 

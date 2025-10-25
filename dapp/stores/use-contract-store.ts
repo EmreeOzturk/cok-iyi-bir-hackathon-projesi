@@ -1,8 +1,10 @@
 "use client";
 
 import { create } from "zustand";
-import { SuiClient } from "@mysten/sui.js/client";
-import { AgentCommerceContract, suiClient, ServiceProfile, AccessNFT, ReputationNFT } from "@/lib/contracts";
+import { SuiClient } from "@mysten/sui/client";
+import { AgentCommerceContract } from "@/lib/contracts";
+import { suiClient, ServiceProfile, AccessNFT, ReputationNFT } from "@/lib/sui";
+import { executeTransaction } from "@/lib/transaction-executor";
 
 type ContractState = {
   client: SuiClient;
@@ -51,7 +53,7 @@ export const useContractStore = create<ContractState>((set, get) => ({
   setRegistryId: (id) => set({ registryId: id }),
 
   loadServices: async () => {
-    const { registryId, contract } = get();
+    const { registryId } = get();
     if (!registryId) return;
 
     try {
@@ -122,7 +124,7 @@ export const useContractStore = create<ContractState>((set, get) => ({
     if (!registryId) throw new Error("Registry not initialized");
 
     try {
-      const txb = await contract.registerAgent(
+      const tx = await contract.registerAgent(
         registryId,
         agentId,
         signerAddress,
@@ -133,8 +135,9 @@ export const useContractStore = create<ContractState>((set, get) => ({
         signerAddress
       );
 
-      // Execute transaction (would need signer integration)
-      console.log("Agent registration transaction prepared:", txb);
+      // Execute transaction
+      const result = await executeTransaction(tx);
+      console.log("Agent registration completed:", result.digest);
 
       // Refresh services after registration
       await get().loadServices();
@@ -154,7 +157,7 @@ export const useContractStore = create<ContractState>((set, get) => ({
     const { contract } = get();
 
     try {
-      const txb = await contract.payAndIssue(
+      const tx = await contract.payAndIssue(
         guardId,
         paymentCoinId,
         amount,
@@ -162,10 +165,12 @@ export const useContractStore = create<ContractState>((set, get) => ({
         credits
       );
 
-      // Execute transaction (would need signer integration)
-      console.log("Purchase transaction prepared:", txb);
+      // Execute transaction
+      const result = await executeTransaction(tx);
+      console.log("Purchase transaction completed:", result.digest);
 
-      // Return mock NFT ID
+      // Extract NFT ID from transaction effects (would need to parse the actual effects)
+      // For now, return a mock ID
       return "0xnew-nft-id";
     } catch (error) {
       console.error("Failed to purchase service:", error);
@@ -177,10 +182,11 @@ export const useContractStore = create<ContractState>((set, get) => ({
     const { contract } = get();
 
     try {
-      const txb = await contract.consumeCredit(accessNftId, clockId, caller);
+      const tx = await contract.consumeCredit(accessNftId, clockId, caller);
 
-      // Execute transaction (would need signer integration)
-      console.log("Consume credit transaction prepared:", txb);
+      // Execute transaction
+      const result = await executeTransaction(tx);
+      console.log("Consume credit transaction completed:", result.digest);
 
       // Refresh AccessNFTs after consumption
       await get().loadAccessNfts(caller);
@@ -198,12 +204,13 @@ export const useContractStore = create<ContractState>((set, get) => ({
     const { contract } = get();
 
     try {
-      const txb = isPositive
+      const tx = isPositive
         ? await contract.addPositiveFeedback(reputationNftId, feedbackAuthorityId, Date.now())
         : await contract.addNegativeFeedback(reputationNftId, feedbackAuthorityId, Date.now());
 
-      // Execute transaction (would need signer integration)
-      console.log("Feedback transaction prepared:", txb);
+      // Execute transaction
+      const result = await executeTransaction(tx);
+      console.log("Feedback transaction completed:", result.digest);
 
       // Refresh reputation data
       const { reputationNft } = get();

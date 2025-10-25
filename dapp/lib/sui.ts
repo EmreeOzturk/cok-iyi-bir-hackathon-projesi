@@ -1,17 +1,9 @@
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import { createNetworkConfig } from '@mysten/dapp-kit';
 import { CONTRACT_CONFIG } from './config';
-
-// Network configuration
-export const networkConfig = createNetworkConfig({
-  devnet: { url: getFullnodeUrl('devnet') },
-  testnet: { url: getFullnodeUrl('testnet') },
-  mainnet: { url: getFullnodeUrl('mainnet') },
-});
 
 // Sui client based on configured network
 export const suiClient = new SuiClient({
-  url: networkConfig[CONTRACT_CONFIG.NETWORK as keyof typeof networkConfig]?.url || networkConfig.testnet.url,
+  url: getFullnodeUrl(CONTRACT_CONFIG.NETWORK as 'devnet' | 'testnet' | 'mainnet'),
 });
 
 // Contract addresses from config
@@ -69,8 +61,17 @@ declare global {
       requestAccounts(): Promise<string[]>;
       signAndExecuteTransactionBlock(input: {
         transactionBlock: Uint8Array;
-        options?: any;
-      }): Promise<any>;
+        options?: {
+          showEffects?: boolean;
+          showEvents?: boolean;
+          showBalanceChanges?: boolean;
+        };
+      }): Promise<{
+        digest: string;
+        effects?: unknown;
+        events?: unknown;
+        balanceChanges?: unknown;
+      }>;
       signTransactionBlock(input: {
         transactionBlock: Uint8Array;
       }): Promise<{ signature: string; transactionBlockBytes: string }>;

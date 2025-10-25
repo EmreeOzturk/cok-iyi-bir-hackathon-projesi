@@ -97,7 +97,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           owner: connectedAccount,
           coinType: '0x2::sui::SUI' // Using SUI for now, would be USDC in production
         });
-      } catch (error) {
+      } catch {
         // USDC might not be available in testnet
         console.log('USDC balance not available');
       }

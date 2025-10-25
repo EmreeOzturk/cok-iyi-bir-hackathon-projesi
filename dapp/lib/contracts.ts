@@ -1,5 +1,6 @@
-import { SuiClient, Transaction } from '@mysten/sui';
-import { CONTRACT_ADDRESSES, ServiceProfile, AccessNFT, ReputationNFT } from './sui';
+import { SuiClient } from '@mysten/sui/client';
+import { Transaction } from '@mysten/sui/transactions';
+import { CONTRACT_ADDRESSES, ServiceProfile, ReputationNFT } from './sui';
 
 export class AgentCommerceContract {
   constructor(private client: SuiClient) {}
@@ -21,28 +22,29 @@ export class AgentCommerceContract {
       target: `${CONTRACT_ADDRESSES.AGENT_COMMERCE_PACKAGE}::agent_registry::register_agent`,
       arguments: [
         tx.object(registryId),
-        tx.pure(agentId),
-        tx.pure(owner),
-        tx.pure(description),
-        tx.pure(pricingModel),
+        tx.pure.string(agentId),
+        tx.pure.address(owner),
+        tx.pure.string(description),
+        tx.pure.u8(pricingModel.model_type),
+        tx.pure.u64(pricingModel.amount),
         tx.object(reputationNftId),
-        tx.pure(serviceEndpoint),
-        tx.pure(signerAddress),
+        tx.pure.string(serviceEndpoint),
+        tx.pure.address(signerAddress),
       ],
     });
 
     return tx;
   }
 
-  async lookupAgent(registryId: string, agentId: string): Promise<ServiceProfile | null> {
+  async lookupAgent(registryId: string): Promise<ServiceProfile | null> {
     try {
-      const result = await this.client.call('sui_getObject', [
-        registryId,
-        {
+      await this.client.getObject({
+        id: registryId,
+        options: {
           showContent: true,
           showType: true,
         },
-      ]);
+      });
 
       // Parse the dynamic field data
       // This is a simplified version - in practice you'd need to parse the actual Sui object structure
@@ -65,18 +67,16 @@ export class AgentCommerceContract {
   ) {
     const tx = new Transaction();
 
-    const expiryOption = expiry ? { Some: expiry } : { None: null };
-
     tx.moveCall({
       target: `${CONTRACT_ADDRESSES.AGENT_COMMERCE_PACKAGE}::payment::pay_and_issue`,
       arguments: [
         tx.object(guardId),
         tx.object(paymentCoinId),
-        tx.pure(amount),
-        tx.pure(serviceId),
-        tx.pure(credits),
-        tx.pure(expiryOption),
-        tx.pure(tier),
+        tx.pure.u64(amount),
+        tx.pure.string(serviceId),
+        tx.pure.u64(credits),
+        tx.pure.option('u64', expiry),
+        tx.pure.u8(tier),
       ],
     });
 
@@ -96,7 +96,7 @@ export class AgentCommerceContract {
       arguments: [
         tx.object(reputationNftId),
         tx.object(feedbackAuthorityId),
-        tx.pure(timestamp),
+        tx.pure.u64(timestamp),
       ],
     });
 
@@ -115,7 +115,7 @@ export class AgentCommerceContract {
       arguments: [
         tx.object(reputationNftId),
         tx.object(feedbackAuthorityId),
-        tx.pure(timestamp),
+        tx.pure.u64(timestamp),
       ],
     });
 
@@ -131,7 +131,7 @@ export class AgentCommerceContract {
       arguments: [
         tx.object(accessNftId),
         tx.object(clockId),
-        tx.pure(caller),
+        tx.pure.address(caller),
       ],
     });
 
