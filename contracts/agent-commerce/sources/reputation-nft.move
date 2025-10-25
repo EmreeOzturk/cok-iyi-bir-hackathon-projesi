@@ -1,7 +1,10 @@
 module agent_commerce::reputation_nft {
     use sui::dynamic_field;
     use sui::event;
-    use sui::tx_context::TxContext;
+    use sui::tx_context::{Self, TxContext};
+    use sui::object::{Self, UID};
+    use std::option;
+    use agent_commerce::errors;
 
     public struct Metrics has copy, drop, store {
         total_interactions: u64,
@@ -24,6 +27,23 @@ module agent_commerce::reputation_nft {
         negative: u64,
     }
 
+    /// Authority granted to service providers to give feedback for completed services
+    public struct FeedbackAuthority has key, store {
+        id: UID,
+        service_provider: address,
+        service_id: vector<u8>,
+        agent_reputation_id: ID,
+        expiration: u64,
+    }
+
+    /// Event emitted when feedback authority is created
+    public struct FeedbackAuthorityCreated has copy, drop, store {
+        service_provider: address,
+        service_id: vector<u8>,
+        agent_reputation_id: ID,
+        expiration: u64,
+    }
+
     public fun init_reputation(agent: address, ctx: &mut TxContext): ReputationNFT {
         let mut id = object::new(ctx);
         dynamic_field::add(&mut id, METRICS_KEY, Metrics {
@@ -36,11 +56,54 @@ module agent_commerce::reputation_nft {
         ReputationNFT { id, agent }
     }
 
-    public fun add_positive(nft: &mut ReputationNFT, timestamp: u64) {
+      /// Create feedback authority for a service provider
+    public fun create_feedback_authority(
+        service_provider: address,
+        service_id: vector<u8>,
+        agent_reputation_id: ID,
+        expiration_seconds: u64,
+        ctx: &mut TxContext
+    ): FeedbackAuthority {
+        let current_time = tx_context::epoch(ctx);
+        let expiration = current_time + expiration_seconds;
+
+        let authority = FeedbackAuthority {
+            id: object::new(ctx),
+            service_provider,
+            service_id,
+            agent_reputation_id,
+            expiration,
+        };
+
+        event::emit(FeedbackAuthorityCreated {
+            service_provider,
+            service_id,
+            agent_reputation_id,
+            expiration,
+        });
+
+        authority
+    }
+
+    /// Add positive feedback - ONLY callable by authorized feedback providers
+    public fun add_positive(
+        nft: &mut ReputationNFT,
+        authority: &FeedbackAuthority,
+        timestamp: u64,
+        ctx: &TxContext
+    ) {
+        verify_feedback_authority(authority, nft, ctx);
         update_metrics(nft, timestamp, true);
     }
 
-    public fun add_negative(nft: &mut ReputationNFT, timestamp: u64) {
+    /// Add negative feedback - ONLY callable by authorized feedback providers
+    public fun add_negative(
+        nft: &mut ReputationNFT,
+        authority: &FeedbackAuthority,
+        timestamp: u64,
+        ctx: &TxContext
+    ) {
+        verify_feedback_authority(authority, nft, ctx);
         update_metrics(nft, timestamp, false);
     }
 
@@ -77,6 +140,54 @@ module agent_commerce::reputation_nft {
 
     fun borrow_metrics_mut(nft_id: &mut UID): &mut Metrics {
         dynamic_field::borrow_mut(nft_id, METRICS_KEY)
+    }
+
+    /// Verify that the caller is authorized to provide feedback
+    fun verify_feedback_authority(
+        authority: &FeedbackAuthority,
+        nft: &ReputationNFT,
+        ctx: &TxContext
+    ) {
+        let caller = tx_context::sender(ctx);
+
+        // Only the authorized service provider can give feedback
+        assert!(caller == authority.service_provider, errors::not_authorized());
+
+        // The authority must be for this specific reputation NFT
+        assert!(authority.agent_reputation_id == object::id(nft), errors::not_found());
+
+        // The authority must not be expired
+        let current_time = tx_context::epoch(ctx);
+        assert!(current_time <= authority.expiration, errors::not_authorized());
+    }
+
+    /// Check if a feedback authority is valid
+    public fun is_feedback_authority_valid(
+        authority: &FeedbackAuthority,
+        nft: &ReputationNFT,
+        ctx: &TxContext
+    ): bool {
+        let caller = tx_context::sender(ctx);
+        let current_time = tx_context::epoch(ctx);
+
+        caller == authority.service_provider &&
+        authority.agent_reputation_id == object::id(nft) &&
+        current_time <= authority.expiration
+    }
+
+    /// Get the service provider from a feedback authority
+    public fun feedback_authority_provider(authority: &FeedbackAuthority): address {
+        authority.service_provider
+    }
+
+    /// Get the expiration time from a feedback authority
+    public fun feedback_authority_expiration(authority: &FeedbackAuthority): u64 {
+        authority.expiration
+    }
+
+    /// Get the agent address from a ReputationNFT
+    public fun agent_address(nft: &ReputationNFT): address {
+        nft.agent
     }
 }
 

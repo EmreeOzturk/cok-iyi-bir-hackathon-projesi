@@ -3,6 +3,8 @@ module agent_commerce::access_nft {
     use sui::dynamic_field;
     use sui::event;
     use sui::tx_context::TxContext;
+    use sui::object::UID;
+    use std::option;
 
     use agent_commerce::errors;
 
@@ -74,7 +76,10 @@ module agent_commerce::access_nft {
     ) {
         assert!(caller == nft.owner, errors::not_authorized());
 
-        let metadata = borrow_metadata_mut(&mut nft.id);
+        // CRITICAL: Verify metadata exists before accessing
+        assert!(metadata_exists(&nft.id), errors::metadata_missing());
+
+        let metadata = borrow_metadata_mut_safe(&mut nft.id);
         if (option::is_some(&metadata.expiry)) {
             let deadline = *option::borrow(&metadata.expiry);
             assert!(sui::clock::timestamp_ms(clock_obj) <= deadline, errors::no_credits());
@@ -94,7 +99,10 @@ module agent_commerce::access_nft {
         additional_credits: u64,
         new_expiry: Option<u64>,
     ) {
-        let metadata = borrow_metadata_mut(&mut nft.id);
+        // CRITICAL: Verify metadata exists before accessing
+        assert!(metadata_exists(&nft.id), errors::metadata_missing());
+
+        let metadata = borrow_metadata_mut_safe(&mut nft.id);
         metadata.credits_remaining = metadata.credits_remaining + additional_credits;
         if (option::is_some(&new_expiry)) {
             metadata.expiry = new_expiry;
@@ -102,7 +110,9 @@ module agent_commerce::access_nft {
     }
 
     public fun metadata(nft: &AccessNFT): Metadata {
-        *borrow_metadata(&nft.id)
+        // CRITICAL: Verify metadata exists before accessing
+        assert!(metadata_exists(&nft.id), errors::metadata_missing());
+        *borrow_metadata_safe(&nft.id)
     }
 
     public fun owner(nft: &AccessNFT): address {
@@ -113,6 +123,22 @@ module agent_commerce::access_nft {
         *&nft.service_id
     }
 
+    /// Check if metadata exists for the given AccessNFT
+    public fun metadata_exists(nft_id: &UID): bool {
+        dynamic_field::exists_(nft_id, metadata_key())
+    }
+
+    /// Safe borrow that checks existence first
+    fun borrow_metadata_safe(nft_id: &UID): &Metadata {
+        dynamic_field::borrow(nft_id, metadata_key())
+    }
+
+    /// Safe mutable borrow that checks existence first
+    fun borrow_metadata_mut_safe(nft_id: &mut UID): &mut Metadata {
+        dynamic_field::borrow_mut(nft_id, metadata_key())
+    }
+
+    /// DEPRECATED: Unsafe functions - use safe versions instead
     fun borrow_metadata(nft_id: &UID): &Metadata {
         dynamic_field::borrow(nft_id, metadata_key())
     }
@@ -123,6 +149,15 @@ module agent_commerce::access_nft {
 
     fun metadata_key(): MetadataKey {
         MetadataKey {}
+    }
+
+    /// Get metadata as Option (safer alternative)
+    public fun metadata_option(nft: &AccessNFT): Option<Metadata> {
+        if (!metadata_exists(&nft.id)) {
+            option::none()
+        } else {
+            option::some(*borrow_metadata_safe(&nft.id))
+        }
     }
 }
 

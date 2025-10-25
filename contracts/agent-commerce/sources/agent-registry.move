@@ -1,7 +1,11 @@
 module agent_commerce::agent_registry {
     use sui::dynamic_field;
     use sui::event;
-    use sui::tx_context::TxContext;
+    use sui::tx_context::{Self, TxContext};
+    use sui::object::{Self, UID};
+    use sui::transfer;
+    use std::option;
+    use std::vector;
 
     use agent_commerce::errors;
     use agent_commerce::reputation_nft;
@@ -11,6 +15,11 @@ module agent_commerce::agent_registry {
         model_type: u8, // 0: per_credit, 1: subscription, 2: free
         amount: u64,    // amount for per_credit or subscription, ignored for free
     }
+
+    /// Pricing model types
+    public const PER_CREDIT: u8 = 0;
+    public const SUBSCRIPTION: u8 = 1;
+    public const FREE: u8 = 2;
 
     public struct Profile has copy, drop, store {
         owner: address,
@@ -38,11 +47,13 @@ module agent_commerce::agent_registry {
         pricing: PricingModel,
     }
 
-    fun init(ctx: &mut TxContext) {
-        // This would be called during package initialization
-        // For now, we'll create registries on-demand
+    /// Create a new AgentRegistry
+    public fun create_registry(ctx: &mut TxContext): AgentRegistry {
+        AgentRegistry { id: object::new(ctx) }
     }
 
+    /// Register a new agent with ownership verification
+    /// CRITICAL: The caller must own the ReputationNFT they're trying to register
     public fun register_agent(
         registry: &mut AgentRegistry,
         agent_id: ID,
@@ -51,9 +62,20 @@ module agent_commerce::agent_registry {
         pricing: PricingModel,
         reputation_nft: &reputation_nft::ReputationNFT,
         service_endpoint: vector<u8>,
+        ctx: &TxContext
     ) {
         assert!(vector::length(&description) > 0, errors::not_found());
         assert!(vector::length(&service_endpoint) > 0, errors::not_found());
+
+        // CRITICAL SECURITY CHECK: Verify the caller owns the ReputationNFT
+        assert!(object::owner(reputation_nft) == owner, errors::not_authorized());
+
+        // Verify the reputation NFT belongs to the same agent address
+        assert!(reputation_nft::agent_address(reputation_nft) == owner, errors::not_authorized());
+
+        // Verify the caller is the owner (additional security layer)
+        assert!(tx_context::sender(ctx) == owner, errors::not_authorized());
+
         let key = profile_key(agent_id);
         assert!(
             !dynamic_field::exists_(&registry.id, key),
@@ -61,6 +83,7 @@ module agent_commerce::agent_registry {
         );
 
         let reputation_id = object::id(reputation_nft);
+
         dynamic_field::add(
             &mut registry.id,
             key,
@@ -100,6 +123,62 @@ module agent_commerce::agent_registry {
 
     fun borrow_profile_mut(registry_id: &mut UID, agent_id: ID): &mut Profile {
         dynamic_field::borrow_mut(registry_id, profile_key(agent_id))
+    }
+
+    /// Create a per-credit pricing model
+    public fun per_credit_pricing(cost_per_credit: u64): PricingModel {
+        assert!(cost_per_credit > 0, errors::no_credits());
+        PricingModel {
+            model_type: PER_CREDIT,
+            amount: cost_per_credit,
+        }
+    }
+
+    /// Create a subscription pricing model
+    public fun subscription_pricing(monthly_cost: u64): PricingModel {
+        assert!(monthly_cost > 0, errors::no_credits());
+        PricingModel {
+            model_type: SUBSCRIPTION,
+            amount: monthly_cost,
+        }
+    }
+
+    /// Create a free pricing model
+    public fun free_pricing(): PricingModel {
+        PricingModel {
+            model_type: FREE,
+            amount: 0,
+        }
+    }
+
+    /// Calculate the total cost for a given number of credits
+    public fun calculate_cost(pricing: &PricingModel, credits: u64): u64 {
+        if (pricing.model_type == PER_CREDIT) {
+            pricing.amount * credits
+        } else if (pricing.model_type == SUBSCRIPTION) {
+            pricing.amount  // Fixed monthly cost
+        } else if (pricing.model_type == FREE) {
+            0  // Free service
+        } else {
+            abort errors::not_found()  // Invalid pricing model
+        }
+    }
+
+    /// Check if a pricing model is valid
+    public fun is_valid_pricing(pricing: &PricingModel): bool {
+        pricing.model_type == PER_CREDIT ||
+        pricing.model_type == SUBSCRIPTION ||
+        pricing.model_type == FREE
+    }
+
+    /// Get pricing model type
+    public fun pricing_model_type(pricing: &PricingModel): u8 {
+        pricing.model_type
+    }
+
+    /// Get pricing amount
+    public fun pricing_amount(pricing: &PricingModel): u64 {
+        pricing.amount
     }
 
     fun profile_key(agent_id: ID): ProfileKey {
