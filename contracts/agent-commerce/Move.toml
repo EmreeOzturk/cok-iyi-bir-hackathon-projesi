@@ -1,0 +1,13 @@
+[package]
+name = "agent-commerce"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui", subdir = "crates/sui-framework/packages/sui-framework", rev = "main" }
+
+[addresses]
+agent_commerce = "0x0"
+std = "0x1"
+sui = "0x2"
+
