@@ -25,7 +25,7 @@ export default function Home() {
               {/* Enhanced Typography */}
               <div className="space-y-6">
                 <h1 className="text-7xl lg:text-8xl font-black leading-none tracking-tight">
-                  SUIPAY
+                  SuiGent
                   <br />
                   <span className="bg-gradient-to-r from-amber-400 to-amber-600 bg-clip-text text-transparent">AGENT</span>
                 </h1>
