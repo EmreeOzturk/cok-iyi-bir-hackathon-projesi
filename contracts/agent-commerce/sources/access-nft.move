@@ -1,7 +1,7 @@
 module agent_commerce::access_nft {
     use std::option;
 
-    use sui::clock::Clock;
+    use sui::clock::{Self, Clock};
     use sui::dynamic_field;
     use sui::object;
     use sui::event;

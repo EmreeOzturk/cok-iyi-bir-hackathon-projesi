@@ -17,15 +17,16 @@ export function useTransactionExecutor() {
 
     return {
       digest: result.digest,
-      effects: undefined,
-      events: undefined,
-      balanceChanges: undefined,
+      effects: result.effects,
+      events: undefined, // Events need to be fetched separately
+      balanceChanges: undefined, // Balance changes need to be fetched separately
     };
   };
 
   const signTransaction = async (tx: Transaction) => {
-    // For signing without execution, you would use useSignTransaction
-    // But for now, we'll execute and return the digest
+    // Note: dapp-kit's useSignAndExecuteTransaction combines signing and execution
+    // For separate signing, you would use useSignTransaction
+    // This method currently executes the transaction and returns the digest
     const result = await executeTransaction(tx);
     return {
       signature: '', // dapp-kit handles this internally

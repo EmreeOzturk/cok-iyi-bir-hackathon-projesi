@@ -47,7 +47,7 @@ export default function AgentChatPage() {
       if (!response.ok) {
         if (response.status === 404) {
           alert("Agent not found");
-          router.push("/agent-management/agents");
+          router.push("/agents");
           return;
         }
         throw new Error(data.error || 'Failed to load agent');
@@ -68,7 +68,7 @@ export default function AgentChatPage() {
     } catch (error) {
       console.error("Failed to load agent:", error);
       alert("Failed to load agent");
-      router.push("/agent-management/agents");
+      router.push("/agents");
     }
   }, [agentId, router]);
 
@@ -164,7 +164,7 @@ export default function AgentChatPage() {
       <div className="container mx-auto py-8 px-4 max-w-4xl">
         <div className="text-center py-12">
           <p className="text-gray-600">Agent not found</p>
-          <Button onClick={() => router.push("/agent-management/agents")} className="mt-4">
+          <Button onClick={() => router.push("/agents")} className="mt-4">
             Back to Agents
           </Button>
         </div>
@@ -180,7 +180,7 @@ export default function AgentChatPage() {
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
-              onClick={() => router.push("/agent-management/agents")}
+              onClick={() => router.push("/agents")}
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back

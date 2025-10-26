@@ -8,8 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Bot, Sparkles, Code } from "lucide-react";
+import { Loader2, Bot, Sparkles, Code, Wallet } from "lucide-react";
 import { z } from "zod";
+import { useCurrentAccount } from "@mysten/dapp-kit";
+import { useContractTransactions } from "@/stores/use-contract-transactions";
+import { useRouter } from "next/navigation";
 
 // Agent configuration schema
 const agentSchema = z.object({
@@ -18,6 +21,10 @@ const agentSchema = z.object({
   systemPrompt: z.string().min(10, "System prompt must be at least 10 characters").max(2000, "System prompt is too long"),
   model: z.enum(["gpt-4.1-nano", "gpt-4", "gpt-3.5-turbo"]),
   tools: z.array(z.string()).optional(), // Array of tool IDs
+  pricingModel: z.object({
+    model_type: z.number().min(0).max(2),
+    amount: z.number().min(0),
+  }).optional(),
 });
 
 type AgentFormData = z.infer<typeof agentSchema>;
@@ -28,17 +35,25 @@ const availableTools: Record<string, { name: string; description: string }> = {
     name: "Weather Tool",
     description: "Get current weather information for any location"
   },
-  // Add more tools here as they become available
 };
 
 export default function AgentCreationPage() {
+  const account = useCurrentAccount();
+  const { registerAgentWithNFT } = useContractTransactions(null);
+  const router = useRouter();
+
   const [isCreating, setIsCreating] = useState(false);
+  const [isRegisteringOnChain, setIsRegisteringOnChain] = useState(false);
   const [formData, setFormData] = useState<AgentFormData>({
     name: "",
     description: "",
     systemPrompt: "",
     model: "gpt-4.1-nano",
     tools: [],
+    pricingModel: {
+      model_type: 0, // per_credit
+      amount: 1000000, // 1 SUI in MIST
+    },
   });
   const [errors, setErrors] = useState<Partial<Record<keyof AgentFormData, string>>>({});
 
@@ -75,9 +90,14 @@ export default function AgentCreationPage() {
   const handleCreateAgent = async () => {
     if (!validateForm()) return;
 
+    if (!account) {
+      alert("Please connect your wallet first to create an agent with on-chain registration.");
+      return;
+    }
+
     setIsCreating(true);
     try {
-      // Create agent via API
+      // First create the agent locally via API
       const response = await fetch('/api/agents/create', {
         method: 'POST',
         headers: {
@@ -89,6 +109,8 @@ export default function AgentCreationPage() {
           systemPrompt: formData.systemPrompt,
           model: formData.model,
           tools: formData.tools || [],
+          signerAddress: account.address,
+          pricingModel: formData.pricingModel,
         }),
       });
 
@@ -98,12 +120,39 @@ export default function AgentCreationPage() {
         throw new Error(data.error || 'Failed to create agent');
       }
 
-      const agentId = data.agentId;
+      const localAgentId = data.agentId;
+      console.log("Agent created locally with ID:", localAgentId);
 
-      console.log("Agent created with ID:", agentId);
+      // Now register on-chain
+      setIsRegisteringOnChain(true);
+      try {
+        const onChainAgentId = `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Show success message with agent ID
-      alert(`Agent "${formData.name}" created successfully!\nAgent ID: ${agentId}\n\nYou can now chat with your agent.`);
+        console.log("🎯 Starting on-chain registration...");
+        console.log("📋 Form data:", formData);
+        console.log("👤 Account address:", account.address);
+        console.log("🆔 Local agent ID:", localAgentId);
+        console.log("🔗 On-chain agent ID:", onChainAgentId);
+        console.log("💰 Pricing model:", formData.pricingModel || { model_type: 0, amount: 1000000 });
+        console.log("🌐 Service endpoint:", `${window.location.origin}/api/agents/${localAgentId}/execute`);
+
+        const registrationResult = await registerAgentWithNFT(
+          onChainAgentId,
+          formData.name,
+          formData.description,
+          formData.pricingModel || { model_type: 0, amount: 1000000 },
+          `${window.location.origin}/api/agents/${localAgentId}/execute`,
+          account.address
+        );
+
+        console.log("Agent registered on-chain:", registrationResult);
+
+        alert(`Agent "${formData.name}" created and registered on-chain successfully!\nLocal Agent ID: ${localAgentId}\nOn-chain Agent ID: ${onChainAgentId}\nReputationNFT ID: ${registrationResult.reputationNftId}\n\nYou can now chat with your agent.`);
+
+      } catch (onChainError) {
+        console.error("On-chain registration failed:", onChainError);
+        alert(`Agent created locally but on-chain registration failed: ${onChainError instanceof Error ? onChainError.message : 'Unknown error'}\n\nYou can still chat with your agent locally.`);
+      }
 
       // Reset form
       setFormData({
@@ -112,26 +161,50 @@ export default function AgentCreationPage() {
         systemPrompt: "",
         model: "gpt-4.1-nano",
         tools: [],
+        pricingModel: {
+          model_type: 0,
+          amount: 1000000,
+        },
       });
+
+      // Redirect to agents page
+      router.push("/agents");
 
     } catch (error) {
       console.error("Agent creation failed:", error);
       alert(`Agent creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsCreating(false);
+      setIsRegisteringOnChain(false);
     }
   };
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Bot className="w-6 h-6 text-blue-600" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Bot className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Create AI Agent</h1>
+              <p className="text-gray-600 mt-1">Create your own AI agent and register it on-chain</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Create AI Agent</h1>
-            <p className="text-gray-600 mt-1">Create your own AI agent and monetize it</p>
+
+          {/* Wallet Status */}
+          <div className="flex items-center gap-2">
+            <Wallet className="w-4 h-4" />
+            {account ? (
+              <Badge variant="outline" className="text-green-600 border-green-600">
+                Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-red-600 border-red-600">
+                Wallet Not Connected
+              </Badge>
+            )}
           </div>
         </div>
       </div>
@@ -256,19 +329,29 @@ export default function AgentCreationPage() {
               {/* Create Button */}
               <Button
                 onClick={handleCreateAgent}
-                disabled={isCreating}
+                disabled={isCreating || isRegisteringOnChain || !account}
                 className="w-full"
                 size="lg"
               >
-                {isCreating ? (
+                {isRegisteringOnChain ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Registering on Sui Blockchain...
+                  </>
+                ) : isCreating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Creating Agent...
                   </>
+                ) : !account ? (
+                  <>
+                    <Wallet className="w-4 h-4 mr-2" />
+                    Connect Wallet to Create Agent
+                  </>
                 ) : (
                   <>
                     <Bot className="w-4 h-4 mr-2" />
-                    Create Agent
+                    Create Agent & Register on Sui
                   </>
                 )}
               </Button>
@@ -291,10 +374,13 @@ export default function AgentCreationPage() {
                 <Badge variant="outline">Mastra AI</Badge>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">Blockchain Registered</Badge>
+                <Badge variant="outline">Sui Blockchain Registration</Badge>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">Pay-per-Use</Badge>
+                <Badge variant="outline">ReputationNFT Minting</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">Pay-per-Use Monetization</Badge>
               </div>
             </CardContent>
           </Card>
@@ -308,9 +394,10 @@ export default function AgentCreationPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-600 space-y-2">
+              <p>• Connect your Sui wallet to register agents on-chain.</p>
+              <p>• ReputationNFT tracks your agent&apos;s performance and reputation.</p>
+              <p>• Set competitive pricing to attract more users.</p>
               <p>• The more detailed your system prompt, the better your agent performs.</p>
-              <p>• Highlight what makes your agent unique.</p>
-              <p>• Write clear and user-friendly descriptions.</p>
               <p>• Start with GPT-4.1 Nano for fast testing, then upgrade to GPT-4 for production.</p>
             </CardContent>
           </Card>

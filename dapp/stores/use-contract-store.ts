@@ -22,10 +22,6 @@ export function useContractStore() {
     setRegistryId: registry.setRegistryId,
     createRegistry: registry.createRegistry,
 
-    // Services state and actions
-    services: services.services,
-    loadServices: services.loadServices,
-
     // Agents state and actions
     agents: agentStore.agents,
     selectedAgent: agentStore.selectedAgent,

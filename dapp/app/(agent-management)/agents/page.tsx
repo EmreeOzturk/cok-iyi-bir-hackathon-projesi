@@ -4,8 +4,10 @@ import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bot, MessageCircle, Trash2, Loader2 } from "lucide-react";
+import { Bot, MessageCircle, Trash2, Loader2, Database, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
+import { useAgentStore } from "@/stores/use-agent-store";
+import { CONTRACT_CONFIG } from "@/lib/config";
 
 interface StoredAgent {
   id: string;
@@ -20,11 +22,12 @@ interface StoredAgent {
 }
 
 export default function AgentsPage() {
-    const [agents, setAgents] = useState<StoredAgent[]>([]);
+    const [localAgents, setLocalAgents] = useState<StoredAgent[]>([]);
     const [loading, setLoading] = useState(true);
+    const { agents: onChainAgents, fetchAgents: fetchOnChainAgents, isLoading: onChainLoading } = useAgentStore(CONTRACT_CONFIG.REGISTRY_ID);
 
-    // Fetch agents from API
-    const fetchAgents = useCallback(async () => {
+    // Fetch local agents from API
+    const fetchLocalAgents = useCallback(async () => {
         try {
             const response = await fetch('/api/agents');
             const data = await response.json();
@@ -35,20 +38,45 @@ export default function AgentsPage() {
                     ...agent,
                     createdAt: new Date(agent.createdAt)
                 }));
-                setAgents(agentsWithDates);
+                setLocalAgents(agentsWithDates);
             } else {
-                console.error('Failed to fetch agents:', data.error);
+                console.error('Failed to fetch local agents:', data.error);
             }
         } catch (error) {
-            console.error('Error fetching agents:', error);
-        } finally {
-            setLoading(false);
+            console.error('Error fetching local agents:', error);
         }
     }, []);
 
+    // Fetch all agents (both local and on-chain)
+    const fetchAllAgents = useCallback(async () => {
+        await Promise.all([
+            fetchLocalAgents(),
+            fetchOnChainAgents()
+        ]);
+    }, [fetchLocalAgents, fetchOnChainAgents]);
+
     useEffect(() => {
-        fetchAgents();
-    }, [fetchAgents]);
+        let mounted = true;
+
+        const loadAgents = async () => {
+            if (mounted) {
+                setLoading(true);
+                try {
+                    await fetchAllAgents();
+                } finally {
+                    if (mounted) {
+                        setLoading(false);
+                    }
+                }
+            }
+        };
+
+        loadAgents();
+
+        return () => {
+            mounted = false;
+        };
+    }, [fetchAllAgents]);
 
     const handleDeleteAgent = useCallback(async (agentId: string) => {
         if (confirm("Are you sure you want to delete this agent?")) {
@@ -59,7 +87,7 @@ export default function AgentsPage() {
 
                 if (response.ok) {
                     // Refresh the agents list
-                    fetchAgents();
+                    fetchAllAgents();
                 } else {
                     const data = await response.json();
                     alert(`Failed to delete agent: ${data.error}`);
@@ -69,9 +97,9 @@ export default function AgentsPage() {
                 alert('Failed to delete agent');
             }
         }
-    }, [fetchAgents]);
+    }, [fetchAllAgents]);
 
-    if (loading) {
+    if (loading || onChainLoading) {
         return (
             <div className="container mx-auto py-8 px-4 max-w-6xl">
                 <div className="flex items-center justify-center py-12">
@@ -99,11 +127,81 @@ export default function AgentsPage() {
                 </div>
             </div>
 
-            {agents.length === 0 ? (
+            {/* On-chain Agents Section */}
+            {onChainAgents.length > 0 && (
+                <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                        <LinkIcon className="w-5 h-5 text-blue-600" />
+                        <h2 className="text-xl font-semibold text-gray-900">On-Chain Registered Agents</h2>
+                        <Badge variant="outline" className="text-blue-600">{onChainAgents.length}</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                        {onChainAgents.map((agent) => (
+                            <Card key={agent.id} className="hover:shadow-lg transition-shadow border-blue-200">
+                                <CardHeader>
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-100 rounded-lg">
+                                                <Bot className="w-5 h-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg">{agent.agent_name}</CardTitle>
+                                                <Badge variant="outline" className="mt-1 text-green-600 border-green-600">
+                                                    On-Chain Verified
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <CardDescription className="mb-4">
+                                        {agent.description}
+                                    </CardDescription>
+
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-600">Pricing:</span>
+                                            <Badge variant="outline">
+                                                {agent.pricing.model_type === 0 ? 'Per Credit' :
+                                                 agent.pricing.model_type === 1 ? 'Subscription' : 'Free'} - {agent.pricing.amount} MIST
+                                            </Badge>
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-600">Reputation:</span>
+                                            <Badge variant={agent.verified ? "success" : "outline"}>
+                                                {(agent.reputation_score || 0).toFixed(1)}/100 {agent.verified && "✓"}
+                                            </Badge>
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-600">Interactions:</span>
+                                            <span className="text-gray-500">{agent.active_users}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 pt-4 border-t">
+                                        <div className="text-sm text-gray-600 mb-2">
+                                            Service Endpoint: {agent.service_endpoint.slice(0, 30)}...
+                                        </div>
+                                        <Button className="w-full" variant="outline">
+                                            <MessageCircle className="w-4 h-4 mr-2" />
+                                            Interact
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Local Agents Section */}
+            {localAgents.length === 0 && onChainAgents.length === 0 ? (
                 <div className="text-center py-12">
                     <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No agents created yet</h3>
-                    <p className="text-gray-600 mb-4">Start by creating your first agent</p>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No agents found</h3>
+                    <p className="text-gray-600 mb-4">Create your first AI agent and register it on the Sui blockchain</p>
                     <Link href="/agent-creation/create">
                         <Button>
                             <Bot className="w-4 h-4 mr-2" />
@@ -111,9 +209,15 @@ export default function AgentsPage() {
                         </Button>
                     </Link>
                 </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {agents.map((agent) => (
+            ) : localAgents.length > 0 ? (
+                <div>
+                    <div className="flex items-center gap-2 mb-4">
+                        <Database className="w-5 h-5 text-gray-600" />
+                        <h2 className="text-xl font-semibold text-gray-900">Local Agents</h2>
+                        <Badge variant="outline" className="text-gray-600">{localAgents.length}</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {localAgents.map((agent) => (
                         <Card key={agent.id} className="hover:shadow-lg transition-shadow">
                             <CardHeader>
                                 <div className="flex items-start justify-between">
@@ -181,8 +285,9 @@ export default function AgentsPage() {
                             </CardContent>
                         </Card>
                     ))}
+                    </div>
                 </div>
-            )}
+            ) : null}
         </div>
     );
 }

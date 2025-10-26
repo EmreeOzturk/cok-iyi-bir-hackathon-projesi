@@ -58,22 +58,30 @@ export function useWalletStore() {
     updateBalances();
   }, [currentAccount?.address, refreshBalances]);
 
+  // Check if wallet is connected
+  const isConnected = !!currentAccount?.address;
+
   return {
     // Wallet state from dapp-kit
     connectedAccount: currentAccount?.address || null,
     isConnecting: false, // dapp-kit doesn't provide connecting state directly
+    isConnected,
 
     // Custom state
     balances,
 
     // Actions - wallet connection is handled by dapp-kit components
     connectWallet: () => {
-      // Wallet connection is handled by WalletProvider and wallet selector components
-      console.log("Use wallet selector component for connection");
+      // Wallet connection should be handled by the wallet selector UI component
+      // This function serves as a placeholder/reminder
+      console.warn("Wallet connection should be initiated through the wallet selector UI component");
+      console.log("Use the ConnectWalletButton or similar component from @mysten/dapp-kit");
     },
     disconnectWallet: () => {
-      // Wallet disconnection is handled by dapp-kit
-      console.log("Use wallet selector component for disconnection");
+      // In most dapp-kit setups, disconnection is handled automatically
+      // or through the wallet selector component
+      console.warn("Wallet disconnection is typically handled by the wallet selector component");
+      console.log("Check your wallet selector implementation for disconnect functionality");
     },
     setBalances,
     refreshBalances,

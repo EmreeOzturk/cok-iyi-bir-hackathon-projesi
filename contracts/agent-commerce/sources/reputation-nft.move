@@ -3,6 +3,7 @@ module agent_commerce::reputation_nft {
     use sui::event;
     use sui::tx_context;
     use agent_commerce::errors;
+    use sui::transfer;
 
     public struct Metrics has copy, drop, store {
         total_interactions: u64,
@@ -45,7 +46,8 @@ module agent_commerce::reputation_nft {
     }
 
 
-    public fun init_reputation(agent: address, ctx: &mut tx_context::TxContext): ReputationNFT {
+    /// Init reputation NFT for an agent
+    public entry fun init_reputation(agent: address, ctx: &mut tx_context::TxContext) {
         let mut id = object::new(ctx);
         dynamic_field::add(&mut id, METRICS_KEY, Metrics {
             total_interactions: 0,
@@ -55,7 +57,8 @@ module agent_commerce::reputation_nft {
             last_feedback: option::none(),
         });
 
-        ReputationNFT { id, agent }
+        let nft = ReputationNFT { id, agent };
+        transfer::public_transfer(nft, tx_context::sender(ctx));
     }
 
       /// Create feedback authority for a service provider
@@ -158,7 +161,7 @@ module agent_commerce::reputation_nft {
         assert!(caller == authority.service_provider, errors::not_authorized());
 
         // The authority must be for this specific reputation NFT
-        assert!(authority.agent_reputation_id == object::uid_to_inner(&nft.id), errors::not_found());
+        assert!(authority.agent_reputation_id == object::uid_to_inner(&nft.id), errors::not_authorized());
 
         // The authority must not be expired
         let current_time = tx_context::epoch(ctx);

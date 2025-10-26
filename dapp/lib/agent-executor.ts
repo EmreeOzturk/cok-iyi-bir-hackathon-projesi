@@ -5,7 +5,6 @@ import { Agent } from "@mastra/core/agent";
 import { openai } from "@ai-sdk/openai";
 import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
-import { weatherTool } from "../mastra/tools";
 import { StoredAgent } from "./agent-registry";
 
 export class AgentExecutor {
@@ -27,9 +26,10 @@ export class AgentExecutor {
 
     // Set up tools based on selected tools
     const tools = [];
-    if (storedAgent.tools.includes('get_weather')) {
-      tools.push(weatherTool);
-    }
+    // TODO: Implement tool loading when tools are available
+    // if (storedAgent.tools.includes('get_weather')) {
+    //   tools.push(weatherTool);
+    // }
 
     // Create agent instance
     const agent = new Agent({

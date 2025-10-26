@@ -1,5 +1,5 @@
 module agent_commerce::payment {
-    use sui::coin::Coin;
+    use sui::coin::{Self, Coin};
     use sui::object;
     use sui::transfer;
     use sui::tx_context;
@@ -49,6 +49,15 @@ module agent_commerce::payment {
             max_per_tx,
             recipient,
         }
+    }
+
+    public entry fun create_spend_guard(
+        max_per_tx: u64,
+        recipient: address,
+        ctx: &mut TxContext,
+    ) {
+        let guard = init_spend_guard(max_per_tx, recipient, ctx);
+        transfer::public_transfer(guard, tx_context::sender(ctx));
     }
 
     public fun pay_and_issue<CoinType>(
